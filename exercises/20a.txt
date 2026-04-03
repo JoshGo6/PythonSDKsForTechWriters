@@ -1,0 +1,6 @@
+INFO: System started
+ERROR: Disk full
+INFO: User login
+ERROR: Network timeout
+INFO: Backup complete
+ERROR: Permission denied
