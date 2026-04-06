@@ -41,14 +41,21 @@ except Exception as e:
 try:
     with open(output_dir / "published_summary.json", 'r', encoding='utf-8') as f:
         structured_content = json.load(f)
-        word_pattern = re.compile(r"\b[\w-]+\b")
-        word_list = word_pattern.findall(str(structured_content))
-        for record in structured_content:
-            word_count += int(record.get("word_count", 0))
-    with open(output_dir / "published_report.md", 'w', encoding='utf-8') as f:
-        f.write("# Published Pages Report\n\n")
-        f.write(f"Total published pages: {len(published_pages)}\n")
-        f.write(f"Combined word count: {word_count}\n")
-    logging.warning(f"Combined word count: {word_count}")
+        with open(output_dir / "published_report.md", 'w', encoding='utf-8') as f:
+            f.write("# Published Pages Report\n\n")
+            f.write(f"Total published pages: {len(published_pages)}\n")
+            for record in structured_content:
+                word_count += int(record.get("word_count", 0))
+            f.write(f"Combined word count: {word_count}\n")
+            for record in structured_content:
+                f.write(f"\n## {record["title"]}\n\n")
+                for key, value in record.items():
+                    if key == "title":
+                        continue
+                    elif isinstance(value, list):
+                        f.write(f"- **{key.capitalize().replace("_", " ")}**: {', '.join(value)}\n")
+                    else:
+                        f.write(f"- **{key.capitalize().replace("_", " ")}**: {value}\n")
+
 except Exception as e:
-    pass        
+    print(e)        
