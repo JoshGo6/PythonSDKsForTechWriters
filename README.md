@@ -13,4 +13,4 @@ To generate a lesson, upload the lesson artifact into your LLM, along with a pro
 > [!caution]
 > LLMs, like human, are fallible. It's quite common to find errors in LLM output, and I've found errors in these lessons, including in the exercises. If you wish to clone this repo, it is upon you to verify that the material produced is accurate.
 
-As I create new lessons and do the exercises, I upload my exercises to this repo. As of April 3, 2026, I am up to lesson 28, which introduces processing JSON.
+As I create new lessons and do the exercises, I upload my exercises to this repo. As of April 6, 2026, I am up to lesson 29, "Command-Line Interfaces I — `sys.argv` and Basic Arguments."
