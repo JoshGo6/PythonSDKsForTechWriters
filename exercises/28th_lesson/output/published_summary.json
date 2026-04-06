@@ -1,0 +1,19 @@
+[
+  {
+    "title": "Quickstart Guide",
+    "status": "published",
+    "tags": [
+      "getting-started",
+      "tutorial"
+    ],
+    "word_count": 1250
+  },
+  {
+    "title": "Changelog",
+    "status": "published",
+    "tags": [
+      "changelog"
+    ],
+    "word_count": 870
+  }
+]
