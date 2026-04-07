@@ -18,6 +18,7 @@ for file in working_dir.glob("*.json"):
             tags = contents["tags"]
             word_count = contents["word_count"]
             valid_pages.append(contents)
+            logging.info(f"Loaded file {file.name}.")
             if status == "published":
                 published_pages.append(contents)
         except json.JSONDecodeError as e:
@@ -25,37 +26,38 @@ for file in working_dir.glob("*.json"):
         except KeyError as e:
             logging.warning(f"File {file.name} is missing the following key(s): {e}")
 
+logging.info(f"Successfully loaded {len(valid_pages)} files.")
+
 published_pages = sorted(published_pages, key=lambda x: x["word_count"], reverse=True)
 word_count=0
 logging.debug(json.dumps(published_pages, indent=2, sort_keys=True))
 
+output_dir = Path("output")
+output_dir.mkdir(exist_ok=True)
 try:
-    output_dir = Path("output")
-    output_dir.mkdir(exist_ok=True)
     with open(output_dir / "published_summary.json", 'w', encoding='utf-8') as f:
         json.dump(published_pages, f, indent=2)
-    logging.debug(f"Wrote {len(published_pages)} records to published_summary.json.")
+    logging.info(f"Wrote {len(published_pages)} records to published_summary.json.")
 except Exception as e:
     logging.warning(f"Unable to write published_summary.json: {e}")
 
-try:
-    with open(output_dir / "published_summary.json", 'r', encoding='utf-8') as f:
+with open(output_dir / "published_summary.json", 'r', encoding='utf-8') as f:
+    try:
         structured_content = json.load(f)
-        with open(output_dir / "published_report.md", 'w', encoding='utf-8') as f:
-            f.write("# Published Pages Report\n\n")
-            f.write(f"Total published pages: {len(published_pages)}\n")
-            for record in structured_content:
-                word_count += int(record.get("word_count", 0))
-            f.write(f"Combined word count: {word_count}\n")
-            for record in structured_content:
-                f.write(f"\n## {record["title"]}\n\n")
-                for key, value in record.items():
-                    if key == "title":
-                        continue
-                    elif isinstance(value, list):
-                        f.write(f"- **{key.capitalize().replace("_", " ")}**: {', '.join(value)}\n")
-                    else:
-                        f.write(f"- **{key.capitalize().replace("_", " ")}**: {value}\n")
-
-except Exception as e:
-    print(e)        
+    except json.JSONDecodeError as e:
+        print(f"Problem loading JSON: {e}")
+    with open(output_dir / "published_report.md", 'w', encoding='utf-8') as f:
+        f.write("# Published Pages Report\n\n")
+        f.write(f"Total published pages: {len(published_pages)}\n")
+        for record in structured_content:
+            word_count += int(record.get("word_count", 0))
+        f.write(f"Combined word count: {word_count}\n")
+        for record in structured_content:
+            f.write(f"\n## {record["title"]}\n\n")
+            for key, value in record.items():
+                if key == "title":
+                    continue
+                elif isinstance(value, list):
+                    f.write(f"- **{key.capitalize().replace("_", " ")}**: {', '.join(value)}\n")
+                else:
+                    f.write(f"- **{key.capitalize().replace("_", " ")}**: {value}\n")        
