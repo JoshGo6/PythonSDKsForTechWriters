@@ -19,8 +19,7 @@ for file in working_dir.glob("*.json"):
             word_count = contents["word_count"]
             valid_pages.append(contents)
             logging.info(f"Loaded file {file.name}.")
-            if status == "published":
-                published_pages.append(contents)
+            published_pages = list(filter(lambda x: x["status"] == "published", valid_pages))
         except json.JSONDecodeError as e:
             logging.warning(f"Filename {file.name} contains invalid JSON.")
         except KeyError as e:
@@ -28,7 +27,7 @@ for file in working_dir.glob("*.json"):
 
 logging.info(f"Successfully loaded {len(valid_pages)} files.")
 
-published_pages = sorted(published_pages, key=lambda x: x["word_count"], reverse=True)
+published_pages.sort(key=lambda x: x["word_count"])
 word_count=0
 logging.debug(json.dumps(published_pages, indent=2, sort_keys=True))
 

@@ -1,5 +1,13 @@
 [
   {
+    "title": "Changelog",
+    "status": "published",
+    "tags": [
+      "changelog"
+    ],
+    "word_count": 870
+  },
+  {
     "title": "Quickstart Guide",
     "status": "published",
     "tags": [
@@ -7,13 +15,5 @@
       "tutorial"
     ],
     "word_count": 1250
-  },
-  {
-    "title": "Changelog",
-    "status": "published",
-    "tags": [
-      "changelog"
-    ],
-    "word_count": 870
   }
 ]
