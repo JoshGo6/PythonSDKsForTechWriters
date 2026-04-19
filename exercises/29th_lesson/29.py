@@ -9,7 +9,6 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 def validate_write_path(write_path):
     if "/" in str(write_path):
         write_dir = str(write_path).rsplit("/", 1)[0]
-        print(write_dir)
         if not Path(write_dir).exists():
             print(f"The output directory doesn't exist.")
             Path(write_dir).mkdir(parents=True, exist_ok=True)
@@ -37,11 +36,9 @@ for match in re.finditer(r'\[(.*?)\]\((.*?)\)', input_text):
 try:
     with open(write_path, 'w', encoding='utf-8') as f:
         json.dump(output, f, indent=2, sort_keys=True)
-    print(f"Extracted {len(output)} links.")
+    print(f"Extracted {len(output)} links to '{write_path}'")
 except FileNotFoundError as e:
     logging.critical('Unable to write to file.')
-
-Path("../29th_test_dir").mkdir(parents=True, exist_ok=True)
 
 
 
