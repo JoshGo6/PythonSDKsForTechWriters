@@ -84,49 +84,43 @@ After drafting the exercises but before presenting them, you must perform an exp
     
     ## Output Format
     
-    The output you, the LLM, create must be in a single Markdown file for use in Obsidian. If you have parenthetical notes, important information, tips, or warnings, you can use these formats, where you MUST put the note-type slug (for example `> [!tip]`) on the first line, by itself, rather than run it into the text. 
+    The output you, the LLM, create must be in a single Markdown file for use in Obsidian. If you have parenthetical notes, important information, tips, or warnings, you can use these formats, where you MUST put the note-type slug (for example `> [!tip]`) on the first line, by itself, rather than run it into the text. The following examples show incorrect patterns and correct patterns for callouts. Do not use the incorrect patterns. **HARD RULE:**: You **MUST** use the correct patterns. 
     
-**Correct patterns for callouts:**
+**Incorrect pattern for a note:**
 
-For a note:
+> [!note] Closing the file terminates the process.
+
+**Correct pattern for a note:**
 
 > [!note] 
 > Closing the file terminates the process.
 
-For a tip:
+**Incorrect pattern for a tip:**
+
+> [!tip] Closing the file terminates the process.
+
+**Correct pattern for a tip:**
 
 > [!tip] 
-> Closing the significantly speeds up the application.
+> Closing the file terminates the process.
 
-For info:
+**Incorrect pattern for info:**
 
-> [!info]
-> You need at least 32GB of free space.
+> [!info] Closing the file terminates the process.
 
-For a warning:
+**Correct pattern for info:**
+
+> [!info] 
+> Closing the file terminates the process.
+
+**Incorrect pattern for a warning:**
+
+> [!warning] Closing the file terminates the process.
+
+**Correct pattern for a warning:**
 
 > [!warning] 
-> Do not delete the log files. You'll need them to verify correct execution, at the end.
-
-Each of these correct patterns has a commonly used incorrect pattern, where the code slug is run into the text. Avoid these patterns. 
-
-**Examples of incorrect patterns:**
-
-For a note:
-
-> [!note]  Closing the file terminates the process.
-
-For a tip:
-
-> [!tip]  Closing the significantly speeds up the application.
-
-For info:
-
-> [!info] You need at least 32GB of free space.
-
-For a warning:
-
-> [!warning]  Do not delete the log files. You'll need them to verify correct execution, at the end.
+> Closing the file terminates the process.
 
 ## Final Objective
 
