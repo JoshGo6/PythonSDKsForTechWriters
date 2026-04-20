@@ -1,268 +1,421 @@
-# Lesson 31: Environment variables and secrets (token-safe habits)
+# Lesson 31: Environment Variables and Secrets (Token-Safe Habits)
 
-## 1. Terminology and Theory
+## Terminology and Theory
 
-**Environment variable**: A named string value that lives in the environment of a running process. The shell (Bash, Zsh, etc.) maintains a table of these variables and hands a copy of that table to every program it launches. Your Python script reads from that copy. It cannot change the shell's own table from inside the script — the handoff is one-way.
+**Environment variable** — A named value that lives in your shell session, outside your Python script. Every process you launch inherits a copy of the environment from its parent shell. Environment variables are the standard way to pass configuration — API tokens, file paths, feature flags — into a script without embedding those values in the source code.
 
-**Why secrets don't belong in code**: A hardcoded secret like `token = "ghp_abc123..."` is a security hazard. It gets committed to Git, ends up in screenshots and error logs, and sits in the shell history of anyone who ran the script. Storing secrets in environment variables keeps them out of source files, so the same script can be shared, committed, or published without leaking credentials.
+**Secret** — Any value that grants access to a protected resource: API tokens, passwords, private keys. Secrets must never appear in source code, version-controlled files, or log output.
 
-**Fail fast**: When a script depends on configuration it cannot produce for itself (a token, a username, an API key), it should check for that configuration immediately — before doing any real work — and exit with a helpful message if anything is missing. The alternative is discovering the missing token after ten minutes of API calls, which wastes time and produces confusing failure traces.
+**Fail fast** — A design pattern where your script checks for required configuration immediately at startup and exits with a clear error message if anything is missing. This prevents the script from running halfway, doing partial work, and then crashing deep inside a function when the missing value is finally needed.
 
-**Environment values are always strings.** If you need a number, convert it explicitly with `int()` or `float()`. Python will not coerce for you, and forgetting this is a classic source of `TypeError` bugs.
+**`os.environ`** — A dictionary-like object provided by the `os` module that contains all environment variables available to the current process. Accessing a key that does not exist raises a `KeyError`, just like a regular dictionary.
 
-> [!note] Every process inherits environment variables from its parent. When you launch `python script.py` from Bash, Python's `os.environ` contains a copy of Bash's exported variables at that moment. Changing `os.environ` inside Python does not change Bash's environment, and it does not persist after the script exits.
+**`os.getenv()`** — A function that looks up an environment variable by name and returns its value, or returns a default (which is `None` if you do not specify one) when the variable is not set. It never raises an exception for a missing key.
+
+> [!note] Environment variables are always strings. If you set `MAX_RETRIES=5` in your shell, Python receives the string `"5"`, not the integer `5`. You must convert explicitly with `int()`, `float()`, or similar functions when you need a non-string type.
+
+### Why This Matters for SDK Work
+
+Every SDK that connects to a remote service requires authentication. The standard professional pattern is:
+
+1. Store the token in an environment variable.
+2. Load it at the top of your script.
+3. Fail immediately with a helpful message if it is missing.
+
+This keeps secrets out of your code, out of your Git history, and out of your logs.
+
+### Setting Environment Variables in the Shell
+
+Before your Python script can read an environment variable, the variable must exist in the shell session that launches the script. You set one with `export`:
+
+```bash
+export GITHUB_TOKEN="ghp_abc123exampletoken"
+```
+
+This variable now exists for the current terminal session and any processes launched from it. It disappears when you close the terminal. To make it persist across sessions, add the `export` line to your shell configuration file (such as `~/.bashrc` or `~/.profile`).
+
+You can verify it is set:
+
+```bash
+echo $GITHUB_TOKEN
+```
+
+You can also set a variable for a single command without `export`:
+
+```bash
+GITHUB_TOKEN="ghp_abc123exampletoken" python3 my_script.py
+```
+
+This sets `GITHUB_TOKEN` only for that one invocation of `my_script.py`.
+
+> [!warning] Never put real tokens in scripts, notebooks, or documentation examples. Use obviously fake placeholder values like `ghp_EXAMPLE_TOKEN_REPLACE_ME` in any written material.
 
 ---
 
-## 2. Syntax Section
+## Syntax Section
 
-Python reads environment variables through the `os` module. Two interfaces exist, and they behave differently when a variable is missing.
+### Importing `os`
+
+The `os` module is part of the standard library. No installation is needed.
 
 ```python
 import os
-
-# Strict access: raises KeyError if the variable is unset.
-value = os.environ["APP_TOKEN"]
-
-# Safe access via .get(): returns None if unset, or a default if you supply one.
-value = os.environ.get("APP_TOKEN")
-value = os.environ.get("APP_TOKEN", "fallback")
-
-# Equivalent shortcut. os.getenv() is a thin wrapper around os.environ.get().
-value = os.getenv("APP_TOKEN")
-value = os.getenv("APP_TOKEN", "fallback")
 ```
 
-The full mapping is available as `os.environ`, which behaves like a dict (you already know how to iterate these from Lesson 12):
+### Reading with `os.environ`
+
+`os.environ` behaves like a dictionary. You access values by key:
 
 ```python
-for name, val in os.environ.items():
-    print(name, "=", val)
+token = os.environ["GITHUB_TOKEN"]
 ```
 
-For fail-fast exits, use `sys.exit()`. Passing a string prints it to stderr and exits with status 1. Passing an integer exits with that status and no message.
+If `GITHUB_TOKEN` is not set, this raises a `KeyError`. This is sometimes useful — it forces you to handle the missing variable — but it produces an ugly traceback if you do not catch it.
+
+You can also use `.get()` on `os.environ`, which works exactly like `dict.get()`:
 
 ```python
-import sys
-
-sys.exit("APP_TOKEN is not set. Export it and try again.")
-sys.exit(1)  # non-zero status, no message
+token = os.environ.get("GITHUB_TOKEN")
 ```
 
-Setting environment variables happens in the shell, not in Python. Two common patterns:
+This returns `None` if the variable is not set, without raising an exception.
 
-```bash
-# Persistent for the shell session:
-export APP_TOKEN=ghp_yourtokenhere
-python script.py
+### Reading with `os.getenv()`
 
-# One-shot, scoped to a single command:
-APP_TOKEN=ghp_yourtokenhere python script.py
+`os.getenv()` is a convenience function that does the same thing as `os.environ.get()`:
+
+```python
+token = os.getenv("GITHUB_TOKEN")
 ```
 
-The one-shot form is ideal for quick testing because the variable disappears the moment the command finishes — it never touches your shell history as a standalone `export`.
+Returns `None` if the variable is not set. You can supply a default as the second argument:
 
-> [!tip] Never paste real secrets into a script file or a committed shell alias. In real workflows you load them from a file with restrictive permissions (for example, `source ~/.secrets/github.env`) or from a password manager. Tools like `direnv` and `python-dotenv` automate this, but they are out of scope for this lesson.
+```python
+log_level = os.getenv("LOG_LEVEL", "INFO")
+```
+
+If `LOG_LEVEL` is not set, `log_level` gets the string `"INFO"`.
+
+> [!tip] Use `os.getenv()` for optional configuration where a sensible default exists. Use `os.environ["KEY"]` (inside a `try/except`) or an explicit check-and-exit for required secrets where there is no safe default.
+
+### Listing All Environment Variables
+
+Because `os.environ` is dict-like, you can iterate over it:
+
+```python
+for key, value in os.environ.items():
+    print(f"{key}={value}")
+```
+
+This prints every environment variable in the current process. You would not normally do this in a production script, but it is useful for debugging.
+
+### Checking Whether a Variable Is Set
+
+You can use the `in` operator, just like with a dictionary:
+
+```python
+if "GITHUB_TOKEN" in os.environ:
+    print("Token is set.")
+else:
+    print("Token is NOT set.")
+```
 
 ---
 
-## 3. Worked Examples
+## Worked Examples
 
-### Example 1: Reading common environment variables with safe defaults
+### Example 1: Fail-Fast Token Loader
 
-Almost every Unix shell exports `HOME` and `USER` automatically. This script reads them defensively so it still runs in odd environments (containers, cron jobs, minimal shells) where one might be unset.
-
-```python
-# show_env.py
-import os
-
-home = os.getenv("HOME", "<unknown>")
-user = os.getenv("USER", "<unknown>")
-
-print(f"User:      {user}")
-print(f"Home dir:  {home}")
-```
-
-Run it normally, then strip both variables for one invocation to see the defaults kick in:
-
-```bash
-python show_env.py
-# User:      josh
-# Home dir:  /home/josh
-
-env -u USER -u HOME python show_env.py
-# User:      <unknown>
-# Home dir:  <unknown>
-```
-
-If you had written `os.environ["USER"]` instead, the second run would crash with `KeyError` and stop the script cold. The `.get()` / `getenv()` form is the right default for anything optional.
-
-### Example 2: Fail-fast token loader
-
-This script loads a GitHub-style token, validates its rough shape, and prints a safe preview — never the whole token.
+This script loads a required token at startup and exits immediately with a clear message if it is missing. This is the pattern you will use in every SDK script.
 
 ```python
-# check_token.py
 import os
 import sys
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 token = os.getenv("GITHUB_TOKEN")
 
-if token is None:
-    sys.exit("Error: GITHUB_TOKEN is not set. Export it before running this script.")
+if not token:
+    logging.error("GITHUB_TOKEN is not set.")
+    logging.error("Set it with: export GITHUB_TOKEN='your_token_here'")
+    sys.exit(1)
 
-if len(token) < 20:
-    sys.exit(f"Error: GITHUB_TOKEN is {len(token)} characters; expected at least 20.")
-
-preview = f"{token[:4]}...{token[-4:]}"
-print(f"Token loaded ({len(token)} chars): {preview}")
+logging.info("Token loaded successfully.")
+logging.info(f"Token starts with: {token[:4]}...")
 ```
 
-Two runs:
+Key points:
+
+- `os.getenv("GITHUB_TOKEN")` returns `None` if the variable is not set.
+- `if not token` uses truthiness (Lesson 14): both `None` and an empty string `""` are falsy. This catches a variable that is set but accidentally empty.
+- `sys.exit(1)` terminates the script with a non-zero exit code, signaling failure to the shell. `sys.exit(0)` or no argument signals success.
+- The final `logging.info` line prints only the first four characters of the token. Never print a full secret — even in logs you think are private.
+
+Running without the variable set:
+
+```
+ERROR: GITHUB_TOKEN is not set.
+ERROR: Set it with: export GITHUB_TOKEN='your_token_here'
+```
+
+Running with the variable set:
 
 ```bash
-python check_token.py
-# Error: GITHUB_TOKEN is not set. Export it before running this script.
-
-GITHUB_TOKEN=ghp_1234567890abcdefghij python check_token.py
-# Token loaded (24 chars): ghp_...ghij
+export GITHUB_TOKEN="ghp_abc123exampletoken"
+python3 token_loader.py
 ```
 
-Three disciplined habits appear in one short script: the token is never hardcoded, the script exits immediately with a clear message when the token is missing, and the printed preview lets a human confirm "this looks like my token" without the full value ever touching the terminal.
+```
+INFO: Token loaded successfully.
+INFO: Token starts with: ghp_...
+```
 
-### Example 3: Splitting sensitive config from non-sensitive config
+### Example 2: Loading Multiple Configuration Values
 
-Real scripts usually take non-secret options from the command line (paths, modes, flags) and secrets from the environment. This split keeps tokens out of shell history while leaving everyday options easy to type.
+Real scripts often need more than one piece of configuration. This example loads a required token and two optional settings, applying defaults for the optional ones.
 
 ```python
-# export_config.py
-import argparse
-import json
 import os
 import sys
+import logging
 
-parser = argparse.ArgumentParser(description="Export a config summary to JSON.")
-parser.add_argument("--output", required=True, help="Path to the output JSON file.")
-args = parser.parse_args()
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-token = os.getenv("APP_TOKEN")
+
+def load_config():
+    """Load configuration from environment variables.
+
+    Returns a dictionary of configuration values.
+    Exits if required variables are missing.
+    """
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        logging.error("Required variable GITHUB_TOKEN is not set.")
+        sys.exit(1)
+
+    config = {
+        "token": token,
+        "org": os.getenv("GITHUB_ORG", "my-default-org"),
+        "log_level": os.getenv("LOG_LEVEL", "INFO"),
+    }
+    return config
+
+
+config = load_config()
+
+logging.info(f"Organization: {config['org']}")
+logging.info(f"Log level: {config['log_level']}")
+logging.info(f"Token loaded (starts with {config['token'][:4]}...)")
+```
+
+Key points:
+
+- Wrapping configuration loading in a function keeps the top of your script clean and makes the config reusable.
+- Required values get a check-and-exit. Optional values get a default via the second argument to `os.getenv()`.
+- The function returns a dictionary, which the rest of the script uses. This centralizes all environment-variable access in one place.
+
+### Example 3: Validating a Token Format
+
+Sometimes you want to check not just that a variable is set, but that its value looks reasonable before proceeding. This example validates that a GitHub personal access token starts with an expected prefix.
+
+```python
+import os
+import sys
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+VALID_PREFIXES = ("ghp_", "gho_", "ghu_", "ghs_", "ghr_")
+
+token = os.getenv("GITHUB_TOKEN")
+
 if not token:
-    sys.exit("Error: APP_TOKEN is not set.")
+    logging.error("GITHUB_TOKEN is not set.")
+    sys.exit(1)
 
-config = {
-    "token_length": len(token),
-    "token_preview": f"{token[:3]}***{token[-3:]}",
-    "output_path": args.output,
+if not token.startswith(VALID_PREFIXES):
+    logging.error(
+        f"GITHUB_TOKEN does not start with a recognized prefix: "
+        f"{', '.join(VALID_PREFIXES)}"
+    )
+    logging.error("Check that you copied the full token.")
+    sys.exit(1)
+
+logging.info(f"Token validated: starts with {token[:4]}...")
+```
+
+Key points:
+
+- `VALID_PREFIXES` is a tuple of strings. `.startswith()` accepts a tuple and returns `True` if the string starts with any of them (Lesson 5).
+- This catches common mistakes like pasting a partial token, pasting a URL instead of a token, or accidentally assigning the wrong variable.
+- The error message tells the user exactly what went wrong and what to check — this is a hallmark of well-written tooling.
+
+---
+
+## Quick Reference
+
+```python
+# Import the os module
+import os
+
+# Read a required variable (raises KeyError if missing)
+token = os.environ["GITHUB_TOKEN"]
+
+# Read a variable safely (returns None if missing)
+token = os.getenv("GITHUB_TOKEN")
+
+# Read a variable with a fallback default
+log_level = os.getenv("LOG_LEVEL", "INFO")
+
+# Use .get() on os.environ (same as os.getenv)
+org = os.environ.get("GITHUB_ORG", "default-org")
+
+# Check whether a variable exists
+if "GITHUB_TOKEN" in os.environ:
+    print("Token is available.")
+
+# Fail-fast pattern: check and exit early
+token = os.getenv("GITHUB_TOKEN")
+if not token:
+    print("Error: GITHUB_TOKEN is not set.", file=sys.stderr)
+    sys.exit(1)
+
+# Print a partial secret (never print the full value)
+print(f"Token starts with: {token[:4]}...")
+
+# Iterate over all environment variables
+for key, value in os.environ.items():
+    print(f"{key}={value}")
+
+# Validate a token prefix against a tuple of allowed values
+VALID_PREFIXES = ("ghp_", "gho_")
+if not token.startswith(VALID_PREFIXES):
+    sys.exit(1)
+```
+
+---
+
+## Audit
+
+The exercise below requires the following operations. Each is verified against the lesson in which it was introduced.
+
+|Operation|Introduced in|
+|---|---|
+|`import os`|Lesson 17 (modules and imports)|
+|`import sys`|Lesson 29 (`sys.argv`)|
+|`import logging`|Lesson 21 (`logging` module)|
+|`import argparse`|Lesson 30 (`argparse`)|
+|`import json`|Lesson 28 (JSON read/write)|
+|`os.getenv()`|Lesson 31 (this lesson)|
+|`if not variable` (truthiness)|Lesson 14 (truthiness)|
+|`sys.exit(1)`|Lesson 31 (this lesson)|
+|`logging.basicConfig()`, `logging.info()`, `logging.error()`|Lesson 21|
+|`argparse.ArgumentParser`, `add_argument`, `parse_args`|Lesson 30|
+|`str.startswith()` with a tuple|Lesson 5 (string methods)|
+|String slicing (`token[:4]`)|Lesson 4 (string indexing)|
+|`json.dumps()` with `indent`|Lesson 28|
+|`open()` with `with` for writing|Lesson 22 (file I/O)|
+|f-strings|Lesson 6|
+|Functions with `def`, `return`|Lesson 15|
+|Dictionaries (creation, key access)|Lesson 11|
+|`for` loop over a list|Lesson 9|
+
+All operations are from lesson 31 or earlier. No future-lesson dependencies exist.
+
+---
+
+## Exercise
+
+### Token-Safe Config Loader
+
+Write a script called `config_loader.py` that does the following:
+
+1. Uses `argparse` to accept one optional flag: `--output`, which takes a file path. If `--output` is not provided, the script prints its results to stdout.
+    
+2. Loads the following three environment variables:
+    
+    - `APP_TOKEN` — required. The script must exit immediately with a helpful error message (via `logging.error`) if this variable is missing or empty.
+    - `APP_ORG` — optional, defaults to `"default-org"`.
+    - `APP_LOG_LEVEL` — optional, defaults to `"INFO"`.
+3. Validates that `APP_TOKEN` starts with one of these prefixes: `"tok_"`, `"key_"`. If it does not, the script must log an error that lists the valid prefixes and exit.
+    
+4. Builds a dictionary called `config` with four keys:
+    
+    - `"token_preview"` — the first four characters of `APP_TOKEN` followed by `"..."` (e.g., `"tok_..."`).
+    - `"org"` — the value of `APP_ORG`.
+    - `"log_level"` — the value of `APP_LOG_LEVEL`.
+    - `"variables_loaded"` — the integer `3`.
+5. Converts `config` to a JSON string with an indent of 2 and either:
+    
+    - Writes it to the file specified by `--output`, then logs an `INFO` message confirming the file was written, or
+    - Prints it to stdout if `--output` was not provided.
+
+Put all environment-variable loading and validation logic inside a function called `load_and_validate()`. This function must return the validated `config` dictionary.
+
+### Expected Output
+
+**Test 1 — missing token:**
+
+```bash
+python3 config_loader.py
+```
+
+```
+ERROR: APP_TOKEN is not set. Set it with: export APP_TOKEN='your_token_here'
+```
+
+(Script exits with code 1.)
+
+**Test 2 — invalid token prefix:**
+
+```bash
+export APP_TOKEN="bad_prefix_abc"
+python3 config_loader.py
+```
+
+```
+ERROR: APP_TOKEN does not start with a recognized prefix: tok_, key_
+```
+
+(Script exits with code 1.)
+
+**Test 3 — valid token, no `--output` flag:**
+
+```bash
+export APP_TOKEN="tok_abc123secret"
+python3 config_loader.py
+```
+
+```
+{
+  "token_preview": "tok_...",
+  "org": "default-org",
+  "log_level": "INFO",
+  "variables_loaded": 3
 }
-
-with open(args.output, "w", encoding="utf-8") as f:
-    json.dump(config, f, indent=2)
-
-print(f"Wrote config summary to {args.output}")
 ```
 
-Run it:
+**Test 4 — valid token with `--output` flag and custom org:**
 
 ```bash
-APP_TOKEN=abc123xyz789 python export_config.py --output summary.json
-# Wrote config summary to summary.json
-
-cat summary.json
-# {
-#   "token_length": 12,
-#   "token_preview": "abc***789",
-#   "output_path": "summary.json"
-# }
+export APP_TOKEN="key_xyz789secret"
+export APP_ORG="my-team"
+python3 config_loader.py --output config_out.json
 ```
 
-Notice the guard `if not token:` rather than `if token is None:`. Because an empty string is falsy (Lesson 14), `not token` treats both "unset" and "set to empty string" as failures. That's usually what you want for secrets — an empty token is just as useless as a missing one.
-
----
-
-## 4. Quick Reference
-
-```python
-# Import the os module to reach the environment.
-import os
-
-# Strict read: raises KeyError if the variable is unset.
-token = os.environ["APP_TOKEN"]
-
-# Safe read via .get(): returns None when unset.
-token = os.environ.get("APP_TOKEN")
-
-# Safe read with a default.
-level = os.environ.get("LOG_LEVEL", "INFO")
-
-# Shortcut. os.getenv() returns None when unset.
-token = os.getenv("APP_TOKEN")
-
-# Shortcut with a default.
-level = os.getenv("LOG_LEVEL", "INFO")
-
-# Iterate the whole environment as (name, value) pairs.
-for name, val in os.environ.items():
-    print(name, "=", val)
-
-# Fail fast with a message: prints to stderr, exits with status 1.
-import sys
-sys.exit("Error: APP_TOKEN is not set.")
-
-# Fail fast with an explicit exit code and no message.
-sys.exit(1)
-
-# "Unset or empty" guard using truthiness (Lesson 14).
-if not token:
-    sys.exit("Error: APP_TOKEN is not set.")
-
-# Safe preview: show only the first few and last few characters.
-preview = f"{token[:4]}...{token[-4:]}"
-
-# Environment values are always strings. Convert when needed.
-timeout_seconds = int(os.getenv("TIMEOUT", "30"))
+```
+INFO: Configuration written to config_out.json
 ```
 
----
+Contents of `config_out.json`:
 
-## 5. Exercise
-
-Write a script named `validate_config.py` that loads and validates application configuration from environment variables, then writes a summary to a JSON file whose path is supplied on the command line.
-
-**Requirements**
-
-- The script must accept a required `--output` option specifying the path to the JSON output file.
-- The script must read two environment variables: `APP_USER` and `APP_TOKEN`.
-- If `APP_USER` is unset or empty, the script must print the exact message `Error: APP_USER is not set.` and exit with a non-zero status.
-- If `APP_TOKEN` is unset or empty, the script must print the exact message `Error: APP_TOKEN is not set.` and exit with a non-zero status.
-- If `APP_TOKEN` is set but shorter than 10 characters, the script must print the exact message `Error: APP_TOKEN is too short.` and exit with a non-zero status.
-- If every check passes, the script must write a JSON file at the `--output` path containing exactly these three keys:
-    - `user` — the value of `APP_USER`
-    - `token_length` — the number of characters in `APP_TOKEN`
-    - `token_preview` — the first three characters of the token, followed by `***`, followed by the last three characters of the token
-- The JSON file must be pretty-printed (indented) so it is human-readable.
-- On success, the script must print `Wrote config to <path>` to standard output, where `<path>` is the value supplied to `--output`.
-
-**Desired output**
-
-```bash
-python validate_config.py --output config.json
-# Error: APP_USER is not set.
-
-APP_USER=josh python validate_config.py --output config.json
-# Error: APP_TOKEN is not set.
-
-APP_USER=josh APP_TOKEN=short python validate_config.py --output config.json
-# Error: APP_TOKEN is too short.
-
-APP_USER=josh APP_TOKEN=ghp_abcdefghij1234567890 python validate_config.py --output config.json
-# Wrote config to config.json
-
-cat config.json
-# {
-#   "user": "josh",
-#   "token_length": 23,
-#   "token_preview": "ghp***890"
-# }
+```json
+{
+  "token_preview": "key_...",
+  "org": "my-team",
+  "log_level": "INFO",
+  "variables_loaded": 3
+}
 ```
-
-> [!tip] After each failing run, check `echo $?` in Bash. A non-zero value confirms your script is signaling failure correctly to the shell — that's what build tools, CI systems, and other scripts rely on.
