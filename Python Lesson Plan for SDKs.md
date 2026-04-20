@@ -280,6 +280,9 @@ Teach reading environment variables with `os.environ` / `os.getenv`, and why sec
 
 Teach installing packages with `pip`, pinning versions, and reading the basics of a function signature. Cover the difference between a module, a package, and an installed distribution. Exercises install a small library, import it, and call a documented function using only prior Python.
 
+#### Lesson 32a: Markdown formatting with `mdformat`
+
+Teach `mdformat` as a command-line tool and Python library for enforcing consistent style across Markdown files. Cover installation via `pip`, the CLI (`mdformat file.md`, `--check` for dry runs), and the Python API (`mdformat.file()` and `mdformat.text()`). Teach the options dict for controlling list numbering and line wrap behavior. Introduce the plugin model: explain why `mdformat` mangles non-standard syntax without the correct plugin, and show how to find and install the right plugin for a given Markdown flavor. Emphasize the operational discipline of always testing against a copy of a file before running against a directory. Exercises apply `mdformat` via the Python API to a set of Markdown files, verify the output matches expected style, and demonstrate the consequence of running without the correct plugin on a file containing non-standard syntax.
 #### Lesson 33: Virtual environments with `venv` (repeatable setups)
 
 Teach creating/activating a venv, installing into it, and freezing dependencies. Emphasize reproducibility: "same environment = same behavior." Exercises create a venv and run a script that imports an installed library.
