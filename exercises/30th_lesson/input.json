@@ -1,0 +1,7 @@
+[
+  {"name": "login bug", "status": "open"},
+  {"name": "typo fix", "status": "closed"},
+  {"quantity": "sprint type"},
+  {"name": "docs update", "status": "open"},
+  {"name": "sprint type", "status": "on hold"}
+]
