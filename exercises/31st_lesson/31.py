@@ -31,12 +31,15 @@ def validate_input():
     return ((APP_TOKEN, APP_ORG, APP_LOG_LEVEL, processed_vars))
 
 parser = argparse.ArgumentParser(description="Loads three environment variables, shows a preview of APP_TOKEN, and shows the values of APP_ORG and APP_LOG_LEVEL.")
-parser.add_argument("--output", action="store_true", help="Path to output file.")
+parser.add_argument("--output", help="Path to output file.")
 args = parser.parse_args()
 
 prefixes = {"tok_", "key_"}
-
 processed_vars = validate_input()[3]
 
-print(processed_vars)
-
+if args.output:
+    with open (Path(args.output), 'w', encoding='utf-8') as f:
+        json.dump(processed_vars, f, indent=2, sort_keys=True)
+    logging.info(f"Output was written to {args.output}.")
+else:
+    print(f"The following is your information:\n{json.dumps(processed_vars, sort_keys=True, indent=2)}")
