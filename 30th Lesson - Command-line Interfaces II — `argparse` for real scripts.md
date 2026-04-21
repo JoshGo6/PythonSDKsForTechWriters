@@ -334,6 +334,14 @@ print(args)
 print(vars(args))
 ```
 
+```bash
+# Get help at the CLI based on the argparse content in the file
+python3 <python_file_name> -h
+```
+
+> [!important]
+> For the help to work at the terminal, you must have an `args = parser.parse_args()` assignment in your script. There's no reason you wouldn't have it. Otherwise you'd be specifying arguments that you'd never use in your script, but if you're testing the help before building out the logic, for the CLI help to work, your script must invoke the `.parse_args()` method. 
+
 ## Exercise
 
 You have this `sys.argv`-based script, `summarize.py`, from Lesson 29. It reads a JSON file containing a list of issue records and prints one summary line per record.
