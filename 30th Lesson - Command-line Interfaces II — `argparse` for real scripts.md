@@ -294,46 +294,6 @@ Notice how the final `print(args)` line shows the full Namespace on one line. Th
 
 ## Quick Reference
 
-```python
-# Import argparse from the standard library.
-import argparse
-
-# Create a parser. The description shows at the top of --help.
-parser = argparse.ArgumentParser(description="What the script does.")
-
-# Positional arguments are MANDATORY by default. Their name (with no leading dashes)
-# becomes the attribute name on args. The order of add_argument calls determines
-# the order in which positionals must appear on the command line.
-parser.add_argument("path", help="Path to the input file.")
-
-# A second positional. Must appear after 'path' on the command line.
-parser.add_argument("output", help="Path to the output file.")
-
-# Optional arguments are NOT required by default. They are identified by their
-# flag name, not by position, so they can appear anywhere on the command line.
-# The action="store_true" parameter tells Python that this is a Boolean parameter set to True only if the argument is given by the user at the CLI
-parser.add_argument("--verbose", action="store_true", help="Print extra output.")
-
-# An optional argument with a default value thats' used when the flag is not given.
-parser.add_argument("--name", default="world", help="Who to greet.")
-
-# An optional argument that argparse converts to an int.
-parser.add_argument("--count", type=int, default=10, help="How many items.")
-
-# Parse sys.argv. Returns a Namespace. Exits automatically on bad input or --help.
-args = parser.parse_args()
-
-# Access parsed values as attributes on the Namespace.
-print(args.path)
-print(args.verbose)
-
-# Print the whole Namespace at once — handy for debugging a CLI.
-print(args)
-
-# Convert the Namespace to a regular dict when you need dict-shaped data.
-print(vars(args))
-```
-
 ```bash
 # Get help at the CLI based on the argparse content in the file
 python3 <python_file_name> -h
@@ -341,6 +301,182 @@ python3 <python_file_name> -h
 
 > [!important]
 > For the help to work at the terminal, you must have an `args = parser.parse_args()` assignment in your script. There's no reason you wouldn't have it. Otherwise you'd be specifying arguments that you'd never use in your script, but if you're testing the help before building out the logic, for the CLI help to work, your script must invoke the `.parse_args()` method. 
+
+```python
+"""
+Expanded argparse Quick Reference
+Clarifies optional argument behavior, defaults, and command-line usage patterns.
+"""
+
+import argparse
+
+# Create a parser. The description shows at the top of --help.
+parser = argparse.ArgumentParser(description="What the script does.")
+
+
+# ============================================================================
+# POSITIONAL ARGUMENTS (MANDATORY)
+# ============================================================================
+
+# Positional arguments are MANDATORY by default. Their name (with no leading 
+# dashes) becomes the attribute name on args. The order of add_argument calls 
+# determines the order in which positionals must appear on the command line.
+parser.add_argument("path", help="Path to the input file.")
+
+# A second positional. Must appear after 'path' on the command line.
+parser.add_argument("output", help="Path to the output file.")
+
+
+# ============================================================================
+# OPTIONAL ARGUMENTS - BOOLEAN FLAGS
+# ============================================================================
+
+# Optional arguments are NOT required by default. They are identified by their 
+# flag name, not by position, so they can appear anywhere on the command line.
+#
+# action="store_true" means:
+# - This is a Boolean parameter
+# - It defaults to False if the flag is NOT given
+# - It is set to True ONLY if the flag IS given
+# - At the command line: just provide --verbose (no value after it)
+#
+# CRITICAL: Do NOT use default=True or default=False with action="store_true"
+# The action itself defines the default behavior (False when absent, True when present)
+parser.add_argument("--verbose", action="store_true", help="Print extra output.")
+
+# Example command line usage:
+#   python script.py input.txt output.txt --verbose
+# Access: args.verbose → True
+#
+# Without the flag:
+#   python script.py input.txt output.txt
+# Access: args.verbose → False
+
+
+# ============================================================================
+# OPTIONAL ARGUMENTS - NON-BOOLEAN WITHOUT DEFAULT
+# ============================================================================
+
+# An optional argument that expects a VALUE but has NO default.
+# At the command line: --format json (flag followed by the value)
+# If the flag is not provided, the attribute will be None.
+parser.add_argument("--format", help="Output format (json, csv, etc.)")
+
+# Example command line usage:
+#   python script.py input.txt output.txt --format json
+# Access: args.format → "json"
+#
+# Without the flag:
+#   python script.py input.txt output.txt
+# Access: args.format → None
+
+
+# ============================================================================
+# OPTIONAL ARGUMENTS - NON-BOOLEAN WITH DEFAULT (NOT SUPPLIED)
+# ============================================================================
+
+# An optional argument with a default value that's used when the flag is not given.
+# At the command line: --name Alice (flag followed by the value)
+# If the flag is not provided, the default value is used.
+parser.add_argument("--name", default="world", help="Who to greet.")
+
+# Example WITHOUT supplying the flag:
+#   python script.py input.txt output.txt
+# Access: args.name → "world" (the default)
+
+
+# ============================================================================
+# OPTIONAL ARGUMENTS - NON-BOOLEAN WITH DEFAULT (USER SUPPLIES VALUE)
+# ============================================================================
+
+# Same argument as above, but now with user-supplied value.
+# At the command line: --name Alice (flag followed by the value)
+# The user's value OVERRIDES the default.
+
+# Example WITH supplying the flag:
+#   python script.py input.txt output.txt --name Alice
+# Access: args.name → "Alice" (user-supplied value overrides default)
+
+
+# ============================================================================
+# OPTIONAL ARGUMENTS - WITH TYPE CONVERSION
+# ============================================================================
+
+# An optional argument that argparse converts to an int.
+# At the command line: --count 42 (flag followed by the value)
+# If the flag is not provided, the default value is used.
+# If a non-integer is provided, argparse will error and exit.
+parser.add_argument("--count", type=int, default=10, help="How many items.")
+
+# Example WITHOUT supplying the flag:
+#   python script.py input.txt output.txt
+# Access: args.count → 10 (the default, as an int)
+#
+# Example WITH supplying the flag:
+#   python script.py input.txt output.txt --count 42
+# Access: args.count → 42 (user-supplied value, converted to int)
+#
+# Example with INVALID value:
+#   python script.py input.txt output.txt --count abc
+# Result: argparse prints error and exits the program
+#   error: argument --count: invalid int value: 'abc'
+
+
+# ============================================================================
+# PARSING AND ACCESSING VALUES
+# ============================================================================
+
+# Parse sys.argv. Returns a Namespace object.
+# Exits automatically on bad input or --help.
+args = parser.parse_args()
+
+# Access parsed values as attributes on the Namespace.
+print(f"path: {args.path}")           # → "input.txt" (from positional)
+print(f"output: {args.output}")       # → "output.txt" (from positional)
+print(f"verbose: {args.verbose}")     # → True or False (boolean flag)
+print(f"format: {args.format}")       # → "json" or None (optional without default)
+print(f"name: {args.name}")           # → "Alice" or "world" (optional with default)
+print(f"count: {args.count}")         # → 42 or 10 (optional with type conversion)
+
+# Print the whole Namespace at once — handy for debugging a CLI.
+print(f"\nFull Namespace: {args}")
+# → Namespace(path='input.txt', output='output.txt', verbose=True, 
+#             format='json', name='Alice', count=42)
+
+# Convert the Namespace to a regular dict when you need dict-shaped data.
+args_dict = vars(args)
+print(f"\nAs dict: {args_dict}")
+# → {'path': 'input.txt', 'output': 'output.txt', 'verbose': True, 
+#    'format': 'json', 'name': 'Alice', 'count': 42}
+
+
+# ============================================================================
+# SUMMARY: COMMAND LINE PATTERNS
+# ============================================================================
+
+"""
+Positional arguments (MANDATORY):
+  python script.py input.txt output.txt
+
+Boolean flags (no value needed):
+  python script.py input.txt output.txt --verbose
+
+Optional with value (no default):
+  python script.py input.txt output.txt --format json
+  (if omitted: args.format is None)
+
+Optional with value (has default):
+  python script.py input.txt output.txt --name Alice
+  (if omitted: args.name is "world")
+
+Optional with type conversion:
+  python script.py input.txt output.txt --count 42
+  (if omitted: args.count is 10)
+
+All together:
+  python script.py input.txt output.txt --verbose --format json --name Alice --count 42
+"""
+```
 
 ## Exercise
 
