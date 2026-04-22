@@ -92,7 +92,7 @@ After drafting the exercises but before presenting them, you must perform an exp
 
 **Correct pattern for a note:**
 
-> [!note] 
+> [!note]  
 > Closing the file terminates the process.
 
 **Incorrect pattern for a tip:**
@@ -101,7 +101,7 @@ After drafting the exercises but before presenting them, you must perform an exp
 
 **Correct pattern for a tip:**
 
-> [!tip] 
+> [!tip]  
 > Closing the file terminates the process.
 
 **Incorrect pattern for info:**
@@ -110,7 +110,7 @@ After drafting the exercises but before presenting them, you must perform an exp
 
 **Correct pattern for info:**
 
-> [!info] 
+> [!info]  
 > Closing the file terminates the process.
 
 **Incorrect pattern for a warning:**
@@ -119,7 +119,7 @@ After drafting the exercises but before presenting them, you must perform an exp
 
 **Correct pattern for a warning:**
 
-> [!warning] 
+> [!warning]  
 > Closing the file terminates the process.
 
 ## Final Objective
