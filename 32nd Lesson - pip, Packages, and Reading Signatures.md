@@ -10,7 +10,8 @@
 - A **package** is a directory of modules organized under a common name. It contains an `__init__.py` file (which can be empty) that tells Python "this directory is importable." When you write `from pathlib import Path`, `pathlib` is a package in the standard library.
 - A **distribution** (also called a **distribution package**) is what pip installs. It's the thing you download from PyPI — a bundle that may contain one package, several packages, or even just a single module. When someone says "install the `tabulate` package," they're really talking about installing the `tabulate` _distribution_, which happens to provide a package you can import as `tabulate`.
 
-> [!note] In casual speech, people use "package" for all three. That's fine in conversation. But when you're writing documentation, being precise about whether you mean "the importable package" or "the thing you install from PyPI" prevents confusion.
+> [!note] 
+> In casual speech, people use "package" for all three. That's fine in conversation. But when you're writing documentation, being precise about whether you mean "the importable package" or "the thing you install from PyPI" prevents confusion.
 
 **Pinning versions** means specifying an exact version of a package so that your script behaves the same way on every machine that runs it. Without pinning, `pip install tabulate` grabs whatever the latest version is today — which might behave differently from the version you tested against.
 
@@ -49,7 +50,8 @@ pip freeze
 pip show tabulate
 ```
 
-> [!tip] `pip freeze` outputs every installed package and its version in `package==version` format. This is the same format pip uses for installation, so you can save this output to a file (`pip freeze > requirements.txt`) and replay it on another machine (`pip install -r requirements.txt`). You'll learn this workflow formally in Lesson 33 with virtual environments.
+> [!tip] 
+> `pip freeze` outputs every installed package and its version in `package==version` format. This is the same format pip uses for installation, so you can save this output to a file (`pip freeze > requirements.txt`) and replay it on another machine (`pip install -r requirements.txt`). You'll learn this workflow formally in Lesson 33 with virtual environments.
 
 ### Importing installed packages
 

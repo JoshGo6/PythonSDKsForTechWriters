@@ -18,7 +18,8 @@ When to prefer `argparse` over `sys.argv`:
 - You want `--help` to document the tool.
 - You want an optional flag, a default value, or automatic type conversion.
 
-> [!note] `sys.argv` is still fine for quick throwaway scripts. `argparse` is the default for anything you expect to keep, share, or put in a repo.
+> [!note] 
+> `sys.argv` is still fine for quick throwaway scripts. `argparse` is the default for anything you expect to keep, share, or put in a repo.
 
 One behavior worth internalizing up front: `parse_args()` takes over error handling for you. If the caller forgets a required argument or passes a bad type, `argparse` prints a usage message and exits the script with a nonzero status — you do not have to write any of that yourself.
 
@@ -77,7 +78,8 @@ script.py --count 5 --verbose a.txt b.txt
 
 In every case, `argparse` pulls `--verbose` and `--count 5` out of the command line by name, and whatever tokens remain are treated as positionals consumed left-to-right. This is one of the concrete reasons to prefer optionals for anything the caller might want to omit or reorder: you get ordering flexibility for free, without writing any parsing logic yourself.
 
-> [!important]  Dashes in _optional_ flag names become underscores in attribute names. `--dry-run` is accessed as `args.dry_run`, not `args.dry-run` (which would be invalid Python). This conversion applies only to optional arguments; for positional arguments, use single-word names or underscores (`input_file`, not `input-file`) — positional names are preserved literally, and a hyphenated positional can only be reached via `getattr(args, "input-file")`.
+> [!important] 
+> Dashes in _optional_ flag names become underscores in attribute names. `--dry-run` is accessed as `args.dry_run`, not `args.dry-run` (which would be invalid Python). This conversion applies only to optional arguments; for positional arguments, use single-word names or underscores (`input_file`, not `input-file`) — positional names are preserved literally, and a hyphenated positional can only be reached via `getattr(args, "input-file")`.
 
 ## Worked Examples
 
@@ -547,4 +549,5 @@ usage: summarize.py [-h] [--count-only] path
 summarize.py: error: the following arguments are required: path
 ```
 
-> [!tip] The exact wording of your `description=` and `help=` strings does not have to match the expected output character-for-character, but the _structure_ of the `--help` output (positional section, options section, usage line) will match automatically once you configure the arguments correctly.
+> [!tip] 
+> The exact wording of your `description=` and `help=` strings does not have to match the expected output character-for-character, but the _structure_ of the `--help` output (positional section, options section, usage line) will match automatically once you configure the arguments correctly.

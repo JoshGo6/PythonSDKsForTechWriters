@@ -12,7 +12,8 @@
 
 **`os.getenv()`** — A function that looks up an environment variable by name and returns its value, or returns a default (which is `None` if you do not specify one) when the variable is not set. It never raises an exception for a missing key.
 
-> [!note] Environment variables are always strings. If you set `MAX_RETRIES=5` in your shell, Python receives the string `"5"`, not the integer `5`. You must convert explicitly with `int()`, `float()`, or similar functions when you need a non-string type.
+> [!note] 
+> Environment variables are always strings. If you set `MAX_RETRIES=5` in your shell, Python receives the string `"5"`, not the integer `5`. You must convert explicitly with `int()`, `float()`, or similar functions when you need a non-string type.
 
 ### Why This Matters for SDK Work
 
@@ -48,7 +49,8 @@ GITHUB_TOKEN="ghp_abc123exampletoken" python3 my_script.py
 
 This sets `GITHUB_TOKEN` only for that one invocation of `my_script.py`.
 
-> [!warning] Never put real tokens in scripts, notebooks, or documentation examples. Use obviously fake placeholder values like `ghp_EXAMPLE_TOKEN_REPLACE_ME` in any written material.
+> [!warning] 
+> Never put real tokens in scripts, notebooks, or documentation examples. Use obviously fake placeholder values like `ghp_EXAMPLE_TOKEN_REPLACE_ME` in any written material.
 
 ---
 
@@ -96,7 +98,8 @@ log_level = os.getenv("LOG_LEVEL", "INFO")
 
 If `LOG_LEVEL` is not set, `log_level` gets the string `"INFO"`.
 
-> [!tip] Use `os.getenv()` for optional configuration where a sensible default exists. Use `os.environ["KEY"]` (inside a `try/except`) or an explicit check-and-exit for required secrets where there is no safe default.
+> [!tip] 
+> Use `os.getenv()` for optional configuration where a sensible default exists. Use `os.environ["KEY"]` (inside a `try/except`) or an explicit check-and-exit for required secrets where there is no safe default.
 
 ### Listing All Environment Variables
 

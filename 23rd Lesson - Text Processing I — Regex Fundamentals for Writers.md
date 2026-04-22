@@ -67,7 +67,8 @@ In other words, group 0 is always the full match and is not a "captured group" �
 
 **`.iterdir()`:** A method on a `pathlib.Path` object (Lesson 22) that returns an iterator yielding one `Path` object for each item — file or subdirectory — inside the directory. It is the `pathlib` equivalent of "list everything in this folder." Because it returns an iterator, you use it in a `for` loop or wrap it in `sorted()` or `list()` if you need a sorted or indexable sequence.
 
-> [!note] Regex is powerful but also easy to over-use. If a plain string method like `.startswith()`, `.endswith()`, or `.replace()` can do the job, prefer that — it's simpler and easier to maintain. Reach for regex when the pattern is variable or you need to match a _shape_ of text rather than a fixed string.
+> [!note] 
+> Regex is powerful but also easy to over-use. If a plain string method like `.startswith()`, `.endswith()`, or `.replace()` can do the job, prefer that — it's simpler and easier to maintain. Reach for regex when the pattern is variable or you need to match a _shape_ of text rather than a fixed string.
 
 ---
 
@@ -203,7 +204,8 @@ re.findall(r"\[(.+?)\]\(.+?\)", markdown_line)
 # Captures the link text from Markdown links like [text](url)
 ```
 
-> [!tip] The `?` after `+` or `*` makes the quantifier **non-greedy** — it matches as _few_ characters as possible instead of as many as possible. This matters when a line has multiple matches, like two Markdown links on the same line. Without `?`, the pattern would try to swallow everything between the first `[` and the last `)`.
+> [!tip] 
+> The `?` after `+` or `*` makes the quantifier **non-greedy** — it matches as _few_ characters as possible instead of as many as possible. This matters when a line has multiple matches, like two Markdown links on the same line. Without `?`, the pattern would try to swallow everything between the first `[` and the last `)`.
 
 ### Passing a function as an argument
 
@@ -232,7 +234,8 @@ When `re.sub()` receives a function as the second argument, the following happen
 
 You write the logic of the replacement function `shout()`, and `re.sub()` handles the calling.
 
-> [!note] The match object isn't a string. To access the matched content as a string, we used `match.group()`.
+> [!note] 
+> The match object isn't a string. To access the matched content as a string, we used `match.group()`.
 
 The following example finds numbers and replaces them with stars of length equal to the number of digits:
 
@@ -275,7 +278,8 @@ print(all_items[0].name)
 
 The items inside the list are still `Path` objects. The `.name` attribute reads the file name of the `all_items[0]` object.
 
-> [!warning] An iterator can only be consumed **once**. If you loop over it and then try to loop over it again, the second loop produces nothing — the iterator is exhausted. If you need to loop more than once, convert to a list first with `list()`.
+> [!warning] 
+> An iterator can only be consumed **once**. If you loop over it and then try to loop over it again, the second loop produces nothing — the iterator is exhausted. If you need to loop more than once, convert to a list first with `list()`.
 
 ## Worked Examples
 
@@ -372,7 +376,8 @@ Closed issue #7 and issue #15 in the same PR
 - Each match object `m` gives us `.group()` (the full match, e.g., `"issue #42"`), `.group(1)` (the captured group, e.g., `"42"`), and `.span()` (the start and end positions as a tuple).
 - `.span()` returns half-open positions: `start` is the index of the first character of the match, and `end` is the index _after_ the last character — the same convention Python uses for slicing. `line[start:end]` would give you back the full matched text.
 
-> [!tip] If you only need the matched text and don't care about positions, use `findall` — it's simpler and gives you a ready-made list. If you need to know _where_ matches are, or you need access to both the full match and captured groups from the same occurrence, use `finditer`.
+> [!tip] 
+> If you only need the matched text and don't care about positions, use `findall` — it's simpler and gives you a ready-made list. If you need to know _where_ matches are, or you need access to both the full match and captured groups from the same occurrence, use `finditer`.
 
 ### Example 3: Using a function as a replacement in `re.sub()`
 

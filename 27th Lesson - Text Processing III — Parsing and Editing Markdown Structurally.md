@@ -42,7 +42,8 @@ This lesson uses `mistune`, a lightweight, pure-Python Markdown parser. You inst
 pip install mistune
 ```
 
-> [!note] Lesson 32 covers `pip` and package management in depth. For now, the command above is all you need — it downloads and installs the `mistune` library so you can import it in your scripts.
+> [!note] 
+> Lesson 32 covers `pip` and package management in depth. For now, the command above is all you need — it downloads and installs the `mistune` library so you can import it in your scripts.
 
 ## Syntax Section
 
@@ -320,7 +321,8 @@ Study this list carefully — several things are worth noticing:
 
 **`mistune` doesn't understand Obsidian-specific syntax.** Token 16 shows a blockquote, but `mistune` doesn't recognize `[!tip]` as a callout marker — it splits the brackets into separate text nodes. Token 18 shows the Obsidian embed `![[quickstart_example.md]]` fragmented into five text nodes. For these Obsidian-specific patterns, regex on the raw file text is the better tool — `mistune` only understands standard Markdown.
 
-> [!tip] You can always inspect the full token list yourself by adding `import json` and printing `json.dumps(tokens, indent=2)` in your script. This is the fastest way to understand how `mistune` parses any Markdown structure you're unsure about.
+> [!tip] 
+> You can always inspect the full token list yourself by adding `import json` and printing `json.dumps(tokens, indent=2)` in your script. This is the fastest way to understand how `mistune` parses any Markdown structure you're unsure about.
 
 #### Finding and processing tokens
 
@@ -724,7 +726,8 @@ sidebar_position: 3
 tags: auth, tokens, security
 ```
 
-> [!tip] This regex approach handles simple single-line `key: value` pairs, which covers the vast majority of front matter in documentation repos. It does not handle YAML lists or nested objects. For complex YAML, you would use a dedicated YAML parsing library — that is outside the scope of this curriculum.
+> [!tip] 
+> This regex approach handles simple single-line `key: value` pairs, which covers the vast majority of front matter in documentation repos. It does not handle YAML lists or nested objects. For complex YAML, you would use a dedicated YAML parsing library — that is outside the scope of this curriculum.
 
 ## Quick Reference
 

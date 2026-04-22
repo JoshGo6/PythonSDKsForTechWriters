@@ -27,7 +27,8 @@ There are four core functions in the `json` module. They come in two pairs:
 - **String pair:** `json.loads()` reads a JSON string into a Python object. `json.dumps()` writes a Python object into a JSON string. The trailing `s` stands for "string."
 - **File pair:** `json.load()` reads a JSON file into a Python object. `json.dump()` writes a Python object into a JSON file. These work with file handles, not strings.
 
-> [!tip] Remember the `s` suffix: `loads`/`dumps` work with **s**trings. `load`/`dump` work with file objects.
+> [!tip] 
+> Remember the `s` suffix: `loads`/`dumps` work with **s**trings. `load`/`dump` work with file objects.
 
 ## Syntax Section
 
@@ -297,7 +298,8 @@ Pretty:
 
 Notice that Python's `True` became `true`, `None` became `null`, and strings kept their double quotes. These are the JSON equivalents — `json.dumps()` handles the translation automatically.
 
-> [!note] `json.dumps()` with `indent` is a better inspection tool than raw `print()` for nested structures. A raw `print()` on a dict will show Python syntax (`True`, `None`, single quotes), while `json.dumps()` shows valid JSON. Either works for debugging, but `json.dumps()` output can be pasted directly into other tools that expect JSON.
+> [!note] 
+> `json.dumps()` with `indent` is a better inspection tool than raw `print()` for nested structures. A raw `print()` on a dict will show Python syntax (`True`, `None`, single quotes), while `json.dumps()` shows valid JSON. Either works for debugging, but `json.dumps()` output can be pasted directly into other tools that expect JSON.
 
 ## Quick Reference
 

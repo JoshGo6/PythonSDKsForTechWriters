@@ -20,7 +20,8 @@
 
 **Dry run** is a pattern you learned in Lesson 25: before performing destructive or irreversible operations (deletes, moves, renames at scale), print what would happen first and only execute when the user confirms. This is even more important for filesystem management than for text editing, because deleted files and overwritten destinations cannot be recovered from a script.
 
-> [!warning] `Path.unlink()` and `shutil.rmtree()` permanently delete files and directories. There is no trash can, no undo. Always preview what will be affected before executing.
+> [!warning] 
+> `Path.unlink()` and `shutil.rmtree()` permanently delete files and directories. There is no trash can, no undo. Always preview what will be affected before executing.
 
 ## Syntax Section
 
@@ -291,7 +292,8 @@ test_files/
 ├── Makefile
 ```
 
-> [!tip] You can create this test structure with a few lines of Python using `Path.mkdir()` and `Path.write_text()`, or you can create the files manually from the shell.
+> [!tip] 
+> You can create this test structure with a few lines of Python using `Path.mkdir()` and `Path.write_text()`, or you can create the files manually from the shell.
 
 **Dry-run output** (order of files may vary, but grouping and format must match):
 

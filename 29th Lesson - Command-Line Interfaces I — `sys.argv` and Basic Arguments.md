@@ -18,7 +18,8 @@ In this example, `input.md`, `output.md`, and `--verbose` are all command-line a
 
 **Usage messages** are short help texts printed when the user runs your script incorrectly. They tell the user what arguments are expected and how to use the script properly.
 
-> [!note] `sys.argv` always contains strings. If you need a number, you must convert it yourself using `int()` or `float()`.
+> [!note] 
+> `sys.argv` always contains strings. If you need a number, you must convert it yourself using `int()` or `float()`.
 
 ## Syntax Section
 
@@ -203,7 +204,8 @@ What happens here:
 3. It validates the file path, loads the JSON, and prints information based on the data type.
 4. If `--verbose` was passed, it prints additional diagnostic information.
 
-> [!tip] Filtering flags out of `sys.argv` before counting positional arguments is a practical pattern for scripts with one or two simple flags. For anything more complex, use `argparse`.
+> [!tip] 
+> Filtering flags out of `sys.argv` before counting positional arguments is a practical pattern for scripts with one or two simple flags. For anything more complex, use `argparse`.
 
 ## Quick Reference
 

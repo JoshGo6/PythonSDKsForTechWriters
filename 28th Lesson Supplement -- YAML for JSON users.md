@@ -38,7 +38,8 @@ The following table shows the direct correspondence between the `json` functions
 |Write to a file|`json.dump(obj, f)`|`yaml.safe_dump(obj, stream=f)`|
 |Parse error|`json.JSONDecodeError`|`yaml.YAMLError`|
 
-> [!warning] Always use `yaml.safe_load()` and `yaml.safe_dump()`, never the bare `yaml.load()` or `yaml.dump()`. The bare versions can execute arbitrary Python code embedded in a YAML file. `safe_load` restricts parsing to plain data types (strings, numbers, lists, dicts, booleans, and `None`), which is all you need.
+> [!warning] 
+> Always use `yaml.safe_load()` and `yaml.safe_dump()`, never the bare `yaml.load()` or `yaml.dump()`. The bare versions can execute arbitrary Python code embedded in a YAML file. `safe_load` restricts parsing to plain data types (strings, numbers, lists, dicts, booleans, and `None`), which is all you need.
 
 One difference in the function signatures: `yaml.safe_load()` accepts both strings and file objects — there is no separate `safe_loads()` function. You pass whichever you have.
 
@@ -57,7 +58,8 @@ YAML maps to the same Python types as JSON, with one addition worth noting:
 |`false` / `no` / `off`|`bool` (`False`)|`false`|
 |`null` or `~`|`None`|`null`|
 
-> [!tip] YAML treats several bare words as booleans: `yes`, `no`, `on`, `off`, `true`, `false` (case-insensitive). If you have a string value like `country: no` (meaning Norway's ISO code), YAML will parse it as `False`. Quote the value — `country: "no"` — to force it to be a string. This is YAML's most common gotcha.
+> [!tip] 
+> YAML treats several bare words as booleans: `yes`, `no`, `on`, `off`, `true`, `false` (case-insensitive). If you have a string value like `country: no` (meaning Norway's ISO code), YAML will parse it as `False`. Quote the value — `country: "no"` — to force it to be a string. This is YAML's most common gotcha.
 
 ## Core Operations
 
@@ -118,7 +120,8 @@ retries: 3
 verbose: true
 ```
 
-> [!note] `yaml.safe_dump()` sorts keys alphabetically by default (the opposite of `json.dumps()`, which preserves insertion order by default). To preserve insertion order, pass `sort_keys=False`. To sort keys in JSON output, you pass `sort_keys=True`. Opposite defaults, same parameter name.
+> [!note] 
+> `yaml.safe_dump()` sorts keys alphabetically by default (the opposite of `json.dumps()`, which preserves insertion order by default). To preserve insertion order, pass `sort_keys=False`. To sort keys in JSON output, you pass `sort_keys=True`. Opposite defaults, same parameter name.
 
 ### Writing YAML to a string
 
@@ -241,7 +244,8 @@ if metadata is not None:
     print(f"Tags: {', '.join(metadata['tags'])}")
 ```
 
-> [!note] This extraction approach handles the common case. Libraries like `python-frontmatter` exist for edge cases (multiple documents, custom delimiters), but for standard `---`-delimited front matter, the string-slicing approach above is sufficient and keeps your dependencies minimal.
+> [!note] 
+> This extraction approach handles the common case. Libraries like `python-frontmatter` exist for edge cases (multiple documents, custom delimiters), but for standard `---`-delimited front matter, the string-slicing approach above is sufficient and keeps your dependencies minimal.
 
 ## Quick Reference
 
