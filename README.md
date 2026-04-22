@@ -13,7 +13,7 @@ To generate a lesson, upload the lesson artifact into your LLM, along with a pro
 > [!caution]
 > LLMs, like human, are fallible. It's quite common to find errors in LLM output, and I've found errors in the generated lessons, including in the exercises. If you wish to clone this repo, it is upon you to verify that the material produced is accurate.
 
-As I create new lessons and do the exercises, I upload my exercises to this repo. As of April 19, 2026, I am up to lesson 31, [Environment variables and secrets (token-safe habits)](./31st%20Lesson%20-%20Environment%20variables%20and%20secrets%20(token-safe%20habits).md).
+As I create new lessons and do the exercises, I upload my exercises to this repo. As of April 21, 2026, I am up to lesson 32, [pip, Packages, and Reading Signatures](./32nd%20Lesson%20-%20pip,%20Packages,%20and%20Reading%20Signatures.md).
 
 > [!important]
 > None of the completed exercises are vibe coded. I have done all of the work by hand, because it makes no sense to vibe code when you're *learning* to code.
