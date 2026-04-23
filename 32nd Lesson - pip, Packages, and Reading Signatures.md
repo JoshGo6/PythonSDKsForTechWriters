@@ -2,18 +2,18 @@
 
 ## Terminology and Theory
 
-**pip** is the standard package installer for Python. When you run `pip install somepackage`, pip downloads the package from the Python Package Index (PyPI) and installs it into your current Python environment so you can `import` it. You've been using the standard library — modules like `json`, `pathlib`, `re`, `os`, `logging`, and `argparse` that ship with Python. pip lets you install _third-party_ packages that don't ship with Python.
+**pip** is the standard package installer for Python. When you run `pip install somepackage`, pip downloads a distribution from the Python Package Index (PyPI) and installs it into your current Python environment so you can `import` what's inside it. You've been using the **standard library** — modules like `json`, `pathlib`, `re`, `os`, `logging`, and `argparse` that ship with Python. pip lets you install _third-party_ distributions that don't ship with Python.
 
 **Module** vs. **package** vs. **distribution** — these three words get used loosely, and their distinctions matter when you're documenting software:
 
 - A **module** is a single `.py` file you can import. You've already written modules — any Python file you import from is a module.
 - A **package** is a directory of modules organized under a common name. It contains an `__init__.py` file (which can be empty) that tells Python "this directory is importable." When you write `from pathlib import Path`, `pathlib` is a package in the standard library.
-- A **distribution** (also called a **distribution package**) is what pip installs. It's the thing you download from PyPI — a bundle that may contain one package, several packages, or even just a single module. When someone says "install the `tabulate` package," they're really talking about installing the `tabulate` _distribution_, which happens to provide a package you can import as `tabulate`.
+- A **distribution** (also called a **distribution package**) is what pip installs. It's the thing you download from PyPI — a bundle that may contain one package, several packages, or even just a single module. When someone says "install the `tabulate` package," they're really talking about installing the `tabulate` _distribution_, which happens to provide a single module you can import as `tabulate`. Most distributions follow this one-to-one pattern, but not all: for example, the `setuptools` distribution installs both the `setuptools` package and the `pkg_resources` package — two separate importable units from a single `pip install`.
 
 > [!note] 
-> In casual speech, people use "package" for all three. That's fine in conversation. But when you're writing documentation, being precise about whether you mean "the importable package" or "the thing you install from PyPI" prevents confusion.
+> In casual speech, people use "package" for all three, and also use "library" as a loose synonym for a distribution ("the requests library"). "Library" is not a formal term in Python's packaging system — its only quasi-official use is in the compound noun "standard library," meaning the collection of modules and packages bundled with Python. When you're writing documentation, being precise about whether you mean "module," "package," or "distribution" prevents confusion.
 
-**Pinning versions** means specifying an exact version of a package so that your script behaves the same way on every machine that runs it. Without pinning, `pip install tabulate` grabs whatever the latest version is today — which might behave differently from the version you tested against.
+**Pinning versions** means specifying an exact version of a distribution so that your script behaves the same way on every machine that runs it. Without pinning, `pip install tabulate` grabs whatever the latest version is today — which might behave differently from the version you tested against.
 
 **Reading a function signature** means looking at a function's definition line and understanding what it accepts and what it returns. A signature tells you:
 
@@ -21,7 +21,7 @@
 2. Its **parameters** — the names, the order, and whether they have default values.
 3. From documentation or docstrings: what **types** each parameter expects and what the function **returns**.
 
-You've been reading signatures since Lesson 15, where you learned to define functions with `def`. Now you need to read signatures written by _other people_ — in libraries you install — and figure out how to call them correctly. The primary tools for this are the library's documentation, the `help()` built-in, and the function's docstring.
+You've been reading signatures since Lesson 15, where you learned to define functions with `def`. Now you need to read signatures written by _other people_ — in distributions you install — and figure out how to call them correctly. The primary tools for this are the distribution's documentation, the `help()` built-in, and the function's docstring.
 
 **`help()`** is a built-in function that prints the docstring and signature of any object. You call it in the REPL or in a script: `help(some_function)`. It's your fastest way to see what a function expects without leaving the terminal.
 
@@ -29,12 +29,12 @@ You've been reading signatures since Lesson 15, where you learned to define func
 
 ## Syntax Section
 
-### Installing packages with pip
+### Installing distributions with pip
 
 Run these commands in your terminal (not inside a Python script):
 
 ```bash
-# Install the latest version of a package
+# Install the latest version of a distribution
 pip install tabulate
 
 # Install a specific version (pinning)
@@ -46,23 +46,26 @@ pip install tabulate>=0.9.0
 # Show what's currently installed, with exact versions
 pip freeze
 
-# Show details about one installed package
+# Show details about one installed distribution
 pip show tabulate
 ```
 
 > [!tip] 
-> `pip freeze` outputs every installed package and its version in `package==version` format. This is the same format pip uses for installation, so you can save this output to a file (`pip freeze > requirements.txt`) and replay it on another machine (`pip install -r requirements.txt`). You'll learn this workflow formally in Lesson 33 with virtual environments.
+> `pip freeze` outputs every installed distribution and its version in `package==version` format. This is the same format pip uses for installation, so you can save this output to a file (`pip freeze > requirements.txt`) and replay it on another machine (`pip install -r requirements.txt`). You'll learn this workflow formally in Lesson 33 with virtual environments.
 
-### Importing installed packages
+### Importing from installed distributions
 
-Once installed, an installed package is imported the same way you import standard library modules:
+Once a distribution is installed, you import what's inside it — a module or a package — the same way you import from the standard library. The `tabulate` distribution provides a single module (a `.py` file), not a package (a directory). You import from it the same way you'd import any module:
 
 ```python
+# Import the tabulate module (the entire .py file)
 import tabulate
+
+# Import just the tabulate function from the tabulate module
 from tabulate import tabulate
 ```
 
-There is no syntactic difference between importing a standard library module and importing an installed third-party package. Python searches a list of directories (the "module search path") and the installed package's location is on that list after installation.
+There is no syntactic difference between importing a standard library module and importing a module from an installed distribution. Python searches a list of directories (the "module search path") and the installed module's location is on that list after installation.
 
 ### Reading a signature with `help()`
 
@@ -72,11 +75,11 @@ from tabulate import tabulate
 help(tabulate)
 ```
 
-This prints the function's signature and its docstring — the block of text the library author wrote to explain how the function works. A typical docstring tells you what each parameter does, what types it accepts, and what the function returns.
+This prints the function's signature and its docstring — the block of text the module's author wrote to explain how the function works. A typical docstring tells you what each parameter does, what types it accepts, and what the function returns.
 
 ### Anatomy of a function signature
 
-When you call `help(tabulate)` or read the library's documentation, you'll see something like this:
+When you call `help(tabulate)` or read the project's documentation, you'll see something like this:
 
 ```
 tabulate(tabular_data, headers=(), tablefmt="simple", ...)
@@ -110,7 +113,7 @@ tabulate(my_data, headers="keys", tablefmt="grid")
 
 ### Example 1: Installing and using `tabulate`
 
-`tabulate` is a small library that formats tabular data as plain-text tables. It's useful for SDK documentation workflows where you want to print structured data in a readable format.
+`tabulate` is a small, single-module distribution that formats tabular data as plain-text tables. It's useful for SDK documentation workflows where you want to print structured data in a readable format.
 
 First, install it in your terminal:
 
@@ -152,7 +155,7 @@ Output:
 
 What happened here:
 
-1. You imported the `tabulate` function from the `tabulate` package.
+1. You imported the `tabulate` function from the `tabulate` module.
 2. You prepared data as a list of lists — the same nested-list structure from Lesson 8.
 3. You called `tabulate()` with three arguments: the data (required positional argument), `headers` (overriding the default empty tuple), and `tablefmt` (overriding the default `"simple"` format with `"grid"`).
 4. The function returned a formatted string, which you printed.
@@ -234,19 +237,19 @@ What happened here:
 ## Quick Reference
 
 ```python
-# Install a package from PyPI (run in terminal, not in Python)
+# Install a distribution from PyPI (run in terminal, not in Python)
 # pip install tabulate
 
 # Install a pinned version (run in terminal)
 # pip install tabulate==0.9.0
 
-# List installed packages with versions (run in terminal)
+# List installed distributions with versions (run in terminal)
 # pip freeze
 
-# Show info about an installed package (run in terminal)
+# Show info about an installed distribution (run in terminal)
 # pip show tabulate
 
-# Import from an installed package (same syntax as standard library)
+# Import a function from an installed module (same syntax as standard library)
 from tabulate import tabulate
 
 # Read a function's signature and docstring
@@ -372,8 +375,8 @@ ERROR: File not found: missing.json
 |`.lower()`|Case-insensitive sort|Lesson 5|
 |`len()`|Counting items|Lesson 7|
 |f-strings|Formatted log messages|Lesson 6|
-|`pip install tabulate`|Installing a third-party package|**Lesson 32 (current)**|
-|`from tabulate import tabulate`|Importing installed package|**Lesson 32 (current)**|
+|`pip install tabulate`|Installing a third-party distribution|**Lesson 32 (current)**|
+|`from tabulate import tabulate`|Importing from an installed module|**Lesson 32 (current)**|
 |`tabulate()` with `headers=` and `tablefmt=`|Reading and calling from a signature|**Lesson 32 (current)**|
 |`sys.exit()`|Exiting on error|Lesson 29 (`sys` module)|
 |List building via `.append()` in a loop|Accumulating filtered results|Lesson 7|
