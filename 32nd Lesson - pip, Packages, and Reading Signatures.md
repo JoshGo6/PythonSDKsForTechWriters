@@ -4,6 +4,8 @@
 
 **pip** is the standard package installer for Python. When you run `pip install somepackage`, pip downloads a distribution from the Python Package Index (PyPI) and installs it into your current Python environment so you can `import` what's inside it. You've been using the **standard library** — modules like `json`, `pathlib`, `re`, `os`, `logging`, and `argparse` that ship with Python. pip lets you install _third-party_ distributions that don't ship with Python.
 
+**Virtual environment** — before you can use pip, you need to set one up. Ubuntu and other Linux distributions block `pip install` against the system Python to prevent you from breaking OS-level packages. A virtual environment is an isolated copy of Python where you can freely install distributions without affecting the rest of your system. You create one with `python3 -m venv`, activate it, and then pip works normally inside it. This lesson covers just enough to get a working environment; Lesson 33 explains virtual environments in full — why they exist, what they create on disk, and how to manage them for reproducible setups.
+
 **Module** vs. **package** vs. **distribution** — these three words get used loosely, and their distinctions matter when you're documenting software:
 
 - A **module** is a single `.py` file you can import. You've already written modules — any Python file you import from is a module.
@@ -29,9 +31,32 @@ You've been reading signatures since Lesson 15, where you learned to define func
 
 ## Syntax Section
 
+### Setting up a virtual environment
+
+Before installing anything with pip, create and activate a virtual environment. Run these commands in your terminal:
+
+```bash
+# Create a virtual environment in a directory called "venv"
+python3 -m venv venv
+
+# Activate it (your prompt changes to show the environment name)
+source venv/bin/activate
+
+# Verify that pip and python now point to the environment, not the system
+which pip
+which python
+```
+
+After activation, `which pip` should print a path inside your `venv/` directory (something like `/home/josh/projects/venv/bin/pip`), not `/usr/bin/pip`. If it still points to `/usr/bin`, activation didn't work — check that you used `source` and that the path to the `activate` script is correct.
+
+> [!warning] 
+> If you skip this step and run `pip install` without an active virtual environment, Ubuntu will block the command with an `externally-managed-environment` error. This is intentional — the system Python is managed by `apt`, and installing distributions into it with pip can break OS-level tools. A virtual environment gives you a safe, isolated space to work in.
+
+From this point forward in the lesson, all `pip` and `python` commands assume you have an active virtual environment. When you're done working, you can deactivate it by running `deactivate` — but leave it active for now.
+
 ### Installing distributions with pip
 
-Run these commands in your terminal (not inside a Python script):
+Run **only one** of these commands in your terminal (not inside a Python script):
 
 ```bash
 # Install the latest version of a distribution
@@ -42,7 +67,11 @@ pip install tabulate==0.9.0
 
 # Install with a minimum version
 pip install tabulate>=0.9.0
+```
 
+Next, run these commands in your terminal:
+
+```sh
 # Show what's currently installed, with exact versions
 pip freeze
 
@@ -115,7 +144,7 @@ tabulate(my_data, headers="keys", tablefmt="grid")
 
 `tabulate` is a small, single-module distribution that formats tabular data as plain-text tables. It's useful for SDK documentation workflows where you want to print structured data in a readable format.
 
-First, install it in your terminal:
+First, make sure your virtual environment is active, then install `tabulate`:
 
 ```bash
 pip install tabulate==0.9.0
@@ -237,6 +266,18 @@ What happened here:
 ## Quick Reference
 
 ```python
+# Create a virtual environment (run in terminal, not in Python)
+# python3 -m venv josh_venv
+
+# Activate the virtual environment (run in terminal)
+# source josh_venv/bin/activate
+
+# Verify pip points to the environment, not the system (run in terminal)
+# which pip
+
+# Deactivate when done (run in terminal)
+# deactivate
+
 # Install a distribution from PyPI (run in terminal, not in Python)
 # pip install tabulate
 
@@ -272,7 +313,7 @@ print(tabulate(data, headers="keys", tablefmt="github"))
 
 ### Dependency Report Formatter
 
-Write a script called `dep_report.py` that reads a JSON file containing a list of software dependencies and prints a formatted table to the terminal.
+Write a script called `dep_report.py` that reads a JSON file containing a list of software dependencies and prints a formatted table to the terminal. Make sure your virtual environment is active and `tabulate` is installed before running the script.
 
 **Input file (`deps.json`):**
 
@@ -375,6 +416,7 @@ ERROR: File not found: missing.json
 |`.lower()`|Case-insensitive sort|Lesson 5|
 |`len()`|Counting items|Lesson 7|
 |f-strings|Formatted log messages|Lesson 6|
+|`python3 -m venv`, `source`, `which`|Setting up and verifying a virtual environment|**Lesson 32 (current)**|
 |`pip install tabulate`|Installing a third-party distribution|**Lesson 32 (current)**|
 |`from tabulate import tabulate`|Importing from an installed module|**Lesson 32 (current)**|
 |`tabulate()` with `headers=` and `tablefmt=`|Reading and calling from a signature|**Lesson 32 (current)**|
