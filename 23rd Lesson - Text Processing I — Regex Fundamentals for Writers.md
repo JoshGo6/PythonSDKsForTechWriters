@@ -534,7 +534,7 @@ else:
 
 ## Quick Reference
 
-![Regex for File Processing - Quick Reference](../Paths,%20writing,%20and%20regex/Regex%20for%20File%20Processing%20-%20Quick%20Reference.md)
+![Regex - Quick Reference](../Paths,%20writing,%20and%20regex/Regex%20-%20Quick%20Reference.md)
 
 ---
 
@@ -588,21 +588,21 @@ Total issue references found: 2
 
 ## Audit
 
-|Requirement|Introduced in|
-|---|---|
-|`import re`|Lesson 17 (introduced), Lesson 23 (used in depth)|
-|`re.findall()` with groups|Lesson 23|
-|Raw strings (`r"..."`)|Lesson 23|
-|`\d+`, `+?`, `[...]`, groups `()`|Lesson 23|
-|Defining a function, parameters, `return None`|Lesson 15|
-|`for` loop with `enumerate()`|Lesson 9|
-|`if/elif/else` conditionals|Lesson 10|
-|Truthiness check on stripped string (`.strip()`)|Lesson 5 (`.strip()`), Lesson 14 (truthiness)|
-|f-strings for formatted output|Lesson 6|
-|`", ".join()` on a list|Lesson 5 (`.join()`)|
-|`len()` for counting|Lesson 7|
-|List creation, `.append()` or `+=` for accumulation|Lesson 7|
-|Variable accumulation (counters)|Lesson 2 (variables), Lesson 9 (loop accumulation)|
+| Requirement                                         | Introduced in                                      |
+| --------------------------------------------------- | -------------------------------------------------- |
+| `import re`                                         | Lesson 17 (introduced), Lesson 23 (used in depth)  |
+| `re.findall()` with groups                          | Lesson 23                                          |
+| Raw strings (`r"..."`)                              | Lesson 23                                          |
+| `\d+`, `+?`, `[...]`, groups `()`                   | Lesson 23                                          |
+| Defining a function, parameters, `return None`      | Lesson 15                                          |
+| `for` loop with `enumerate()`                       | Lesson 9                                           |
+| `if/elif/else` conditionals                         | Lesson 10                                          |
+| Truthiness check on stripped string (`.strip()`)    | Lesson 5 (`.strip()`), Lesson 14 (truthiness)      |
+| f-strings for formatted output                      | Lesson 6                                           |
+| `", ".join()` on a list                             | Lesson 5 (`.join()`)                               |
+| `len()` for counting                                | Lesson 7                                           |
+| List creation, `.append()` or `+=` for accumulation | Lesson 7                                           |
+| Variable accumulation (counters)                    | Lesson 2 (variables), Lesson 9 (loop accumulation) |
 
 **Additional concepts taught in this lesson (used in worked examples, not required by the exercise):**
 
