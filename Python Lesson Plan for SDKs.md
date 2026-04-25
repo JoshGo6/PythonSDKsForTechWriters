@@ -58,7 +58,7 @@ Each generated lesson must contain the following elements, in the order they're 
     - Should take no more than 30 minutes to complete, excluding the time to read the lesson and exercise instructions.
     - Should not contain hints as to how to complete the exercises.
     - **Hard rule**: Should reinforce previous lessons by requiring knowledge of them.
-    - Should reinforce a diverse set of skills from previous lessons, instead of just skills from one previous lesson. Additionally, should require skills from the previous three lessons, if doing so would not make the exercise be awkward.
+    - Should reinforce a diverse set of skills from previous lessons, instead of just skills from one previous lesson. Additionally, should require skills from the previous five lessons, if doing so would not make the exercise be awkward. If this would result in the exercise being awkward, use skills from a subset of the previous five lessons so that the exercise won't be awkward.
     - **Hard rule:** An exercise **MUST NOT** require _any_ Python operation, syntax, library, or tool that has not been taught in the current lesson or in earlier lessons. If a helpful technique exists but is "coming later," the exercise must not depend on it. In other words, exercises require the use of the current lesson and previous lessons, not future lessons.
     - **Hard rule:** Every exercise must require the learner to write and run code that produces output testable at the command line. An exercise that involves only passive reading or providing a written answer is not sufficient.
     - Should not hint to the user how to perform the exercise.
@@ -274,12 +274,14 @@ Teach reading environment variables with `os.environ` / `os.getenv`, and why sec
 
 Begin with a minimal `venv` setup as a practical prerequisite: create a virtual environment, activate it, and verify that `pip` and `python` resolve to the environment's binaries rather than the system's. Briefly explain why this step is necessary (Ubuntu and other distributions block `pip install` against the system Python), and note that Lesson 33 covers virtual environments in full. Then teach installing distributions with `pip`, pinning versions, and reading the basics of a function signature. Cover the difference between a module, a package, and an installed distribution, and clarify that "library" is informal rather than a formal term in Python's packaging system. Exercises install a small distribution inside the virtual environment, import from it, and call a documented function using only prior Python.
 
-#### Lesson 33: Markdown formatting with `mdformat`
-
-Teach `mdformat` as a command-line tool and Python package for enforcing consistent style across Markdown files. Cover installation via `pip`, the CLI (`mdformat file.md`, `--check` for dry runs), and the Python API (`mdformat.file()` and `mdformat.text()`). Teach the options dict for controlling list numbering and line wrap behavior. Introduce the plugin model: explain why `mdformat` mangles non-standard syntax without the correct plugin, and show how to find and install the right plugin for a given Markdown flavor. Emphasize the operational discipline of always testing against a copy of a file before running against a directory. Exercises apply `mdformat` via the Python API to a set of Markdown files, verify the output matches expected style, and demonstrate the consequence of running without the correct plugin on a file containing non-standard syntax.
-#### Lesson 34: Virtual environments with `venv` (repeatable setups)
+#### Lesson 33: Virtual environments with `venv` (repeatable setups)
 
 Teach creating/activating a venv, installing into it, and freezing dependencies. Emphasize reproducibility: "same environment = same behavior." Exercises create a venv and run a script that imports an installed library.
+
+#### Lesson 34: Markdown formatting with `mdformat`
+
+Teach `mdformat` as a command-line tool and Python package for enforcing consistent style across Markdown files. Cover installation via `pip`, the CLI (`mdformat file.md`, `--check` for dry runs), and the Python API (`mdformat.file()` and `mdformat.text()`). Teach the options dict for controlling list numbering and line wrap behavior. Introduce the plugin model: explain why `mdformat` mangles non-standard syntax without the correct plugin, and show how to find and install the right plugin for a given Markdown flavor. Emphasize the operational discipline of always testing against a copy of a file before running against a directory. Exercises apply `mdformat` via the Python API to a set of Markdown files, verify the output matches expected style, and demonstrate the consequence of running without the correct plugin on a file containing non-standard syntax.
+
 
 ---
 
