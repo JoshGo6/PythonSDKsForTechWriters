@@ -1,0 +1,9 @@
+[
+    {"name": "PyGithub", "version": "1.59.1", "category": "sdk"},
+    {"name": "requests", "version": "2.31.0", "category": "http"},
+    {"name": "tabulate", "version": "0.9.0", "category": "formatting"},
+    {"name": "Flask", "version": "3.0.0", "category": "http"},
+    {"name": "mistune", "version": "3.0.2", "category": "parsing"},
+    {"name": "PyYAML", "version": "6.0.1", "category": "parsing"},
+    {"name": "black", "version": "24.3.0", "category": "formatting"}
+]
