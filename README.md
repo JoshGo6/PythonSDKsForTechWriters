@@ -10,7 +10,7 @@ After finishing the course, the student should be able to do the following with 
 - Place raw API calls and extract and transform the JSON objects they return.
 - Use Python SDKs.
 
-This course is **not** designed to make the student into a full-blown Python developer. After finishing the course, the student will be able to skillfully instantiate and work with objects, but not to create them. A typical use case addressed by this course is a situation where a Markdown document contains headings with sequential digits (for instance, "Lesson 1," "Lesson 2,", "Lesson 3," and so forth). When you insert a new heading in the middle of the document, the subsequent heading numbers are all off by one.
+This course is **not** designed to make the student into a full-blown Python developer. After finishing the course, the student will be able to skillfully work with objects, but not to author classes. A typical use case addressed by this course is a situation where a Markdown document contains headings with sequential digits (for instance, "Lesson 1," "Lesson 2,", "Lesson 3," and so forth). When you insert a new heading in the middle of the document, the subsequent heading numbers are all off by one.
 
 Using the tools taught in this course, you can write a Python script that programmatically increments all of the numbers in the headings that come after the new heading. As I've refined the course and needed to add additional lessons, I had that exact challenge. Instead of renumbering the headings by hand, using the material I learned in this course, I wrote a Python script to do the renumbering.
 
