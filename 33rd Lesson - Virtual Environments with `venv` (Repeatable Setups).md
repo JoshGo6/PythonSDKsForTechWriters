@@ -16,7 +16,8 @@ In Lesson 32, you created a virtual environment as a practical prerequisite for 
 
 **Reproducibility** The core motivation for venvs: given the same `requirements.txt` and the same Python version, two different machines should behave identically. This matters for documentation work because your scripts need to produce the same output on your machine, a colleague's machine, and CI.
 
-> [!note] A venv does not install a separate copy of Python from the internet. It creates a lightweight wrapper that links back to the system Python version you used to create it. The isolation applies to packages, not to Python itself.
+> [!note] 
+> A venv does not install a separate copy of Python from the internet. It creates a lightweight wrapper that links back to the system Python version you used to create it. The isolation applies to packages, not to Python itself.
 
 ---
 
@@ -100,7 +101,8 @@ in_venv = sys.prefix != sys.base_prefix
 
 `sys.prefix` returns the path to the active Python environment. `sys.base_prefix` returns the path to the base Python installation. When they differ, a venv is active.
 
-> [!tip] Add your venv directory name to `.gitignore` if you are using Git. You never commit the venv itself — you commit `requirements.txt` and let others recreate the venv on their own machine.
+> [!tip] 
+> Add your venv directory name to `.gitignore` if you are using Git. You never commit the venv itself — you commit `requirements.txt` and let others recreate the venv on their own machine.
 
 ---
 
@@ -290,9 +292,11 @@ The script must do the following:
 7. If `--output` was provided, write the report dictionary to the specified path as a JSON file using `json.dump()` with `indent=2`, and log an `INFO`-level message confirming the write. If `--output` was omitted, print the report as formatted plain text to stdout.
     
 
-> [!tip] Some packages use hyphens in their PyPI name (e.g., `charset-normalizer`) but underscores in their import name (`charset_normalizer`). When you extract the package name from a `requirements.txt` line, replace any hyphens with underscores before attempting the import.
+> [!tip] 
+> Some packages use hyphens in their PyPI name (e.g., `charset-normalizer`) but underscores in their import name (`charset_normalizer`). When you extract the package name from a `requirements.txt` line, replace any hyphens with underscores before attempting the import.
 
-> [!note] Lines in `requirements.txt` that begin with `#` are comments. Your parser should skip them, along with blank lines.
+> [!note] 
+> Lines in `requirements.txt` that begin with `#` are comments. Your parser should skip them, along with blank lines.
 
 #### Setup
 
