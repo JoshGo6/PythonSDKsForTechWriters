@@ -134,7 +134,8 @@ tabulate(my_data, headers="firstrow")
 tabulate(my_data, headers="keys", tablefmt="grid")
 ```
 
-> [!info] You already understand this from Lesson 16 (default parameters). The new skill here is applying that understanding to _someone else's_ function — one you didn't write — by reading its signature and docstring.
+> [!info] 
+> You already understand this from Lesson 16 (default parameters). The new skill here is applying that understanding to _someone else's_ function — one you didn't write — by reading its signature and docstring.
 
 ---
 

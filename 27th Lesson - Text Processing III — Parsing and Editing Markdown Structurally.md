@@ -789,7 +789,8 @@ $ python3 -c "import re; print(re.sub(r'^#{1,6}', lambda m: '#' + m.group(0), '#
 
 Create a directory called `lesson_27/docs/` and populate it with three Markdown files. Create these files by hand or with a short script — the content must match exactly so your output matches the expected output below.
 
-> [!info] The file contents below are delimited by `---` lines instead of code fences, because these files contain internal code fences that would break the Markdown rendering. When creating each file, copy everything between the `---` delimiters — the delimiters themselves are not part of the file content.
+> [!info] 
+> The file contents below are delimited by `---` lines instead of code fences, because these files contain internal code fences that would break the Markdown rendering. When creating each file, copy everything between the `---` delimiters — the delimiters themselves are not part of the file content.
 
 **`lesson_27/docs/install.md`:**
 

@@ -216,7 +216,8 @@ What you gained by converting:
 - Automatic `--help`.
 - Named attribute access (`args.input`, `args.output`) instead of magic numeric indices (`sys.argv[1]`, `sys.argv[2]`).
 
-> [!info] The rewrite is shorter and clearer, and it will stay shorter as the script grows. Every new argument you add to `argparse` gets `--help` documentation and validation for free; every new argument in `sys.argv` style adds more index-checking and more `print("Usage: ...")` branches.
+> [!info] 
+> The rewrite is shorter and clearer, and it will stay shorter as the script grows. Every new argument you add to `argparse` gets `--help` documentation and validation for free; every new argument in `sys.argv` style adds more index-checking and more `print("Usage: ...")` branches.
 
 ### Example 4: Two mandatory arguments and two optional arguments
 
