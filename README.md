@@ -23,7 +23,7 @@ The [lesson artifact](./Python%20Lesson%20Plan%20for%20SDKs.md) in this repo con
 
 ## Personal progress with the course
 
-As I create new lessons and do the exercises, I upload my exercises to this repo. As of April 25, 2026, I am up to lesson 33, [Virtual Environments with `venv` (Repeatable Setups)](./33rd%20Lesson%20-%20Virtual%20Environments%20with%20`venv`%20(Repeatable%20Setups).md).
+As I create new lessons and do the exercises, I upload my exercises to this repo. As of May 3, 2026, I am up to lesson 35, [HTTP Essentials for SDK Users](./35b—HTTP%20Essentials%20for%20SDK%20Users%20(Claude%20Version).md).
 
 > [!important]
 > None of the completed exercises I've uploaded are vibe coded. I do all of the work by hand, because it makes no sense to vibe code when you're *learning* to code.
