@@ -1,0 +1,11 @@
+{
+  "available": [
+    "certifi",
+    "charset-normalizer",
+    "idna"
+  ],
+  "missing": [
+    "requests",
+    "urllib3"
+  ]
+}
