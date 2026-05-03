@@ -221,49 +221,7 @@ Key details:
 
 ## Quick Reference
 
-```shellsession
-# Recursively find all .md files under docs/
-$ python3 -c "from pathlib import Path; [print(p) for p in Path('docs').rglob('*.md')]"
-docs/README.md
-docs/guides/setup.md
-docs/guides/advanced/config.md
-
-# Move a file into another directory
-$ python3 -c "import shutil; shutil.move('draft.txt', 'archive/draft.txt')"
-(no output on success)
-
-# Rename a file in the same directory
-$ python3 -c "from pathlib import Path; Path('old_name.txt').rename('new_name.txt')"
-(no output on success)
-
-# Delete a single file
-$ python3 -c "from pathlib import Path; Path('temp.txt').unlink()"
-(no output on success)
-
-# Delete a single file, suppressing error if it does not exist
-$ python3 -c "from pathlib import Path; Path('temp.txt').unlink(missing_ok=True)"
-(no output on success)
-
-# Delete an entire directory tree
-$ python3 -c "import shutil; shutil.rmtree('build_output')"
-(no output on success)
-
-# Remove a single empty directory
-$ python3 -c "from pathlib import Path; Path('empty_folder').rmdir()"
-(no output on success)
-
-# Find files whose names match a regex pattern
-$ python3 -c "
-from pathlib import Path
-import re
-pat = re.compile(r'report_\d{4}\.md$')
-for p in Path('docs').rglob('*'):
-    if p.is_file() and pat.search(p.name):
-        print(p)
-"
-docs/report_2024.md
-docs/archive/report_2023.md
-```
+![File Management - Quick Reference](../Paths,%20writing,%20and%20regex/File%20Management%20-%20Quick%20Reference.md)
 
 ## Exercises
 

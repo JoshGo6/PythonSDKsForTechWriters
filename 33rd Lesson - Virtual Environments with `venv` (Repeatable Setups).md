@@ -32,6 +32,9 @@ python3 -m venv myenv
 
 `python3 -m venv` tells Python to run the `venv` module as a script. `myenv` is the directory name — you can call it anything, but `venv`, `.venv`, and `env` are common conventions.
 
+> [!note]
+> This is the first time you have seen the `-m` flag. When you run `python3 venv_report.py`, Python looks for a file called `venv_report.py` on disk. But `venv` is not a file you wrote — it is a module bundled inside Python's standard library. The `-m` flag tells Python to find a module by name in its own internal library and run it as a script. Without `-m`, Python would look for a file literally called `venv` in your current directory and fail. The same flag works with other built-in modules: `python3 -m pip`, `python3 -m json.tool`, and so on. The rule is: your own scripts get a file path, and built-in runnable modules get `-m`.
+
 ### Activating the virtual environment
 
 ```bash
@@ -58,6 +61,22 @@ pip install requests
 ```
 
 No `--break-system-packages` flag needed. The package goes into `myenv/lib/python3.x/site-packages/`.
+
+### Installing packages programmatically in scripts
+
+If you're installing a module programmatically from within a script, instead of using `import`, you need to use the `importlib` module with its `.import_module()` function.
+
+```python
+import importlib
+
+packages = ['certifi', 'charset-normalizer', 'idna', 'requests', 'urllib3']
+for package in packages:
+    try:
+        importlib.import_module(package)
+        print(f"Successfuly imported {package}.")
+    except ModuleNotFoundError as e:
+        print(f"Could not import {package}.")
+```
 
 ### Freezing installed packages
 
@@ -98,6 +117,9 @@ import sys
 
 in_venv = sys.prefix != sys.base_prefix
 ```
+
+> [!note]
+> The expression `sys.prefix != sys.base_prefix` is a comparison, just like the ones you have written inside `if` statements. The difference is that instead of using it as a condition, this line stores the result of the comparison in a variable. A comparison always evaluates to either `True` or `False`, and that boolean value can be assigned to a variable like any other value. 
 
 `sys.prefix` returns the path to the active Python environment. `sys.base_prefix` returns the path to the base Python installation. When they differ, a venv is active.
 
@@ -204,40 +226,7 @@ This pattern is useful when you write a script that depends on packages installe
 
 ## Quick Reference
 
-```python
-# Create a virtual environment named "myenv"
-# (run in terminal, not inside Python)
-python3 -m venv myenv
-
-# Activate the virtual environment (Linux/macOS)
-source myenv/bin/activate
-
-# Verify which python and pip are active
-which python
-which pip
-
-# Install a package into the active venv
-pip install requests
-
-# Install a specific version of a package
-pip install requests==2.31.0
-
-# Freeze current packages to a requirements file
-pip freeze > requirements.txt
-
-# Install all packages from a requirements file
-pip install -r requirements.txt
-
-# Check whether a venv is active from Python
-import sys
-in_venv = sys.prefix != sys.base_prefix
-
-# Deactivate the virtual environment
-deactivate
-
-# Delete a virtual environment (it is just a directory)
-rm -rf myenv
-```
+![Environments Quick Reference](../venv%20and%20environments/Environments%20Quick%20Reference.md)
 
 ---
 
@@ -245,25 +234,25 @@ rm -rf myenv
 
 The exercise below requires the following operations. Each one is verified against the lesson where it was introduced.
 
-|Operation|Introduced in|
-|---|---|
-|`python3 -m venv`, `source .../bin/activate`, `deactivate`|Lesson 33 (current)|
-|`pip freeze > requirements.txt`|Lesson 33 (current)|
-|`pip install -r requirements.txt`|Lesson 33 (current)|
-|`sys.prefix` vs `sys.base_prefix`|Lesson 33 (current)|
-|`json.load()`, `json.dumps()`|Lesson 28|
-|`sys.argv` (conceptual foundation)|Lesson 29|
-|`argparse` with positional arg and optional flags|Lesson 30|
-|`os.getenv()`, environment variable loading|Lesson 31|
-|`pip install` (into a venv)|Lesson 32|
-|`import sys`, `sys.exit()`|Lesson 17 (imports), Lesson 29 (`sys` module)|
-|`import pathlib`, `Path`, `.exists()`, `.read_text()`|Lesson 23|
-|`logging.basicConfig()`, `logging.info()`, `logging.error()`|Lesson 21|
-|`try/except` for specific exceptions|Lesson 19|
-|`if/elif/else`|Lesson 10|
-|`for` loop, `.split()`, `.strip()`|Lessons 9, 5|
-|f-strings|Lesson 6|
-|Functions with default parameters|Lessons 15–16|
+| Operation                                                    | Introduced in                                 |
+| ------------------------------------------------------------ | --------------------------------------------- |
+| `python3 -m venv`, `source .../bin/activate`, `deactivate`   | Lesson 33 (current)                           |
+| `pip freeze > requirements.txt`                              | Lesson 33 (current)                           |
+| `pip install -r requirements.txt`                            | Lesson 33 (current)                           |
+| `sys.prefix` vs `sys.base_prefix`                            | Lesson 33 (current)                           |
+| `json.load()`, `json.dumps()`                                | Lesson 28                                     |
+| `sys.argv` (conceptual foundation)                           | Lesson 29                                     |
+| `argparse` with positional arg and optional flags            | Lesson 30                                     |
+| `os.getenv()`, environment variable loading                  | Lesson 31                                     |
+| `pip install` (into a venv)                                  | Lesson 32                                     |
+| `import sys`, `sys.exit()`                                   | Lesson 17 (imports), Lesson 29 (`sys` module) |
+| `import pathlib`, `Path`, `.exists()`, `.read_text()`        | Lesson 23                                     |
+| `logging.basicConfig()`, `logging.info()`, `logging.error()` | Lesson 21                                     |
+| `try/except` for specific exceptions                         | Lesson 19                                     |
+| `if/elif/else`                                               | Lesson 10                                     |
+| `for` loop, `.split()`, `.strip()`                           | Lessons 9, 5                                  |
+| f-strings                                                    | Lesson 6                                      |
+| Functions with default parameters                            | Lessons 15–16                                 |
 
 All five previous lessons (28–32) are represented. No forward dependencies exist.
 
@@ -279,9 +268,9 @@ The script must do the following:
 
 1. Accept two arguments via `argparse`: a positional argument for the path to a `requirements.txt` file, and an optional flag `--output` that takes a file path. When `--output` is provided, the report is written as JSON to that file. When `--output` is omitted, the report is printed to stdout as plain text.
     
-2. Read an environment variable called `REPORT_LABEL` using `os.getenv()`. This value is used as a label in the report output. If the variable is not set, default to the string `"unlabeled"`.
+2. Read an environment variable called `REPORT_LABEL`. This value is used as a label in the report output. If the variable is not set, default to the string `"unlabeled"`.
     
-3. Check whether the script is running inside a virtual environment by comparing `sys.prefix` to `sys.base_prefix`. If no venv is active, log an error message and exit with code `1`.
+3. Check whether the script is running inside a virtual environment. If no `venv` is active, log an error message and exit with code `1`.
     
 4. Read the `requirements.txt` file at the given path. Parse each non-empty, non-comment line to extract the package name (the part before `==`). Collect these names into a list.
     
