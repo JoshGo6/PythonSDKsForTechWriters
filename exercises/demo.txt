@@ -1,3 +1,0 @@
-hello
-world
-Hi, Josh. A continuation of the second line.

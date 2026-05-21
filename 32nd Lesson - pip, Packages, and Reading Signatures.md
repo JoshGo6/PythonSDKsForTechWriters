@@ -1,4 +1,4 @@
-# Lesson 32: pip, Packages, and Reading Signatures
+## Lesson 32: pip, Packages, and Reading Signatures
 
 ## Terminology and Theory
 

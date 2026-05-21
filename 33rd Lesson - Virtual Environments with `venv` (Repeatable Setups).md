@@ -226,7 +226,7 @@ This pattern is useful when you write a script that depends on packages installe
 
 ## Quick Reference
 
-![Environments Quick Reference](../venv%20and%20environments/Environments%20Quick%20Reference.md)
+![Environments Quick Reference](../venv,%20environments,%20and%20modules/Environments%20Quick%20Reference.md)
 
 ---
 
