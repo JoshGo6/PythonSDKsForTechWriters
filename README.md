@@ -8,11 +8,12 @@ After finishing the course, the student should be able to do the following with 
 
 - Process text files—in particular, Markdown, YAML, JSON, and CSV files—to include extracting text; changing text; reading and writing files; and deleting, moving, and renaming files.
 - Place raw API calls and extract and transform the JSON objects they return.
-- Use Python SDKs.
+- Use Python SDKs skillfully to the point that they can document them for others.
 
-This course is **not** designed to make the student into a full-blown Python developer. After finishing the course, the student will be able to skillfully work with objects, but not to author classes. A typical use case addressed by this course is a situation where a Markdown document contains headings with sequential digits (for instance, "Lesson 1," "Lesson 2,", "Lesson 3," and so forth). When you insert a new heading in the middle of the document, the subsequent heading numbers are all off by one.
+> [!note]
+> This course is **not** designed to make the student into a full-blown Python developer. After finishing the course, the student will be able to skillfully work with objects, but not to author classes.
 
-Using the tools taught in this course, you can write a Python script that programmatically increments all of the numbers in the headings that come after the new heading. As I've refined the course and needed to add additional lessons, I had that exact challenge. Instead of renumbering the headings by hand, using the material I learned in this course, I wrote a Python script to do the renumbering.
+A typical use case addressed by this course is a situation where a Markdown document contains headings with sequential digits (for instance, "Lesson 1," "Lesson 2,", "Lesson 3," and so forth). When you insert a new heading in the middle of the document, the subsequent heading numbers are all off by one. Using the tools taught in this course, you can author a Python script to fix this numbering. I had this problem, and using the skills in this course, I authored a Python script to fix the problem.
 
 ## Instructions for use
 
@@ -21,9 +22,6 @@ The [lesson artifact](./Python%20Lesson%20Plan%20for%20SDKs.md) in this repo con
 > [!caution]
 > LLMs, like human, are fallible. It's quite common to find errors in LLM output, and I've found errors in the generated lessons, including in the exercises. If you wish to clone this repo, it is upon you to verify that the material produced is accurate.
 
-## Personal progress with the course
+## Personal progress 
 
-As I create new lessons and do the exercises, I upload my exercises to this repo. As of May 3, 2026, I am up to lesson 35, [HTTP Essentials for SDK Users](./35b—HTTP%20Essentials%20for%20SDK%20Users%20(Claude%20Version).md).
-
-> [!important]
-> None of the completed exercises I've uploaded are vibe coded. I do all of the work by hand, because it makes no sense to vibe code when you're *learning* to code.
+As of May 22, 2026, I am up to lesson 35, [HTTP Essentials for SDK Users](./35b—HTTP%20Essentials%20for%20SDK%20Users%20(Claude%20Version).md).
