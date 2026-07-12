@@ -30,7 +30,7 @@ The `-H` flag adds a header to the request. The SDK equivalent loads this token 
 
 ### Reading a curl command
 
-A typical `curl` command has this structure:
+ A typical `curl` command has this structure:
 
 ```bash
 curl -X GET \
@@ -43,8 +43,8 @@ Breaking this down piece by piece:
 
 - `curl` — the command itself.
 - `-X GET` — the HTTP method. `-X` stands for "request method." If omitted, `curl` defaults to GET.
-- `-H "Header-Name: value"` — adds a request header. You can use `-H` multiple times for multiple headers.
-- The URL in quotes — the endpoint, including query parameters after the `?`.
+- `-H "Header-Name: value"` — adds a request header. The entire `Name: value` pair is passed as a single quoted argument. You can use `-H` multiple times for multiple headers.
+- `"https://..."` — the URL, passed as a positional argument at the end of the command. Query parameters follow the `?` as `key=value` pairs separated by `&`.
 
 The query string `?state=open&per_page=5` contains two parameters separated by `&`. This is how the client tells the API "only return open issues, five per page."
 
@@ -90,7 +90,7 @@ for issue in issues:
 
 ### Parsing the Link header for pagination
 
-The `Link` header is a string with a specific format. Each link is a URL in angle brackets followed by `; rel="relationship"`. Multiple links are separated by commas. You can extract these with string methods and regex you already know:
+The `link` header is a string with a specific format. Each link is a URL in angle brackets followed by `; rel="<relationship>"`. Multiple links are separated by commas. You can extract these with string methods and regex you already know:
 
 ```python
 import re
@@ -470,24 +470,24 @@ Pagination:
 
 ## Audit
 
-|Requirement|Introduced In|
-|---|---|
-|`print()`, f-strings|Lessons 1, 6|
-|String methods (`.join()`)|Lesson 5|
-|Lists, indexing|Lesson 7|
-|`for` loops|Lesson 9|
-|Conditionals (`if/elif/else`)|Lesson 10|
-|Dict access, `.items()`, `.get()`|Lessons 11, 12|
-|Tuple unpacking in loops|Lesson 13|
-|Truthiness checks (empty list as falsy)|Lesson 14|
-|Functions (`def`)|Lesson 15|
-|`import`|Lesson 17|
-|`json.loads()`|Lesson 28|
-|`argparse` (`--verbose` flag)|Lesson 30|
-|`logging`, `logging.basicConfig()`, `logging.info()`|Lesson 21|
-|`re.findall()`, `re.search()`, `.group()`|Lesson 24|
-|`isinstance()`|Introduced in this lesson (Example 1)|
-|HTTP concepts (status codes, headers, methods)|Lesson 35|
-|curl command reading, pagination, Link header|This lesson (36)|
+| Requirement                                          | Introduced In                         |
+| ---------------------------------------------------- | ------------------------------------- |
+| `print()`, f-strings                                 | Lessons 1, 6                          |
+| String methods (`.join()`)                           | Lesson 5                              |
+| Lists, indexing                                      | Lesson 7                              |
+| `for` loops                                          | Lesson 9                              |
+| Conditionals (`if/elif/else`)                        | Lesson 10                             |
+| Dict access, `.items()`, `.get()`                    | Lessons 11, 12                        |
+| Tuple unpacking in loops                             | Lesson 13                             |
+| Truthiness checks (empty list as falsy)              | Lesson 14                             |
+| Functions (`def`)                                    | Lesson 15                             |
+| `import`                                             | Lesson 17                             |
+| `json.loads()`                                       | Lesson 28                             |
+| `argparse` (`--verbose` flag)                        | Lesson 30                             |
+| `logging`, `logging.basicConfig()`, `logging.info()` | Lesson 21                             |
+| `re.findall()`, `re.search()`, `.group()`            | Lesson 24                             |
+| `isinstance()`                                       | Introduced in this lesson (Example 1) |
+| HTTP concepts (status codes, headers, methods)       | Lesson 35                             |
+| curl command reading, pagination, Link header        | This lesson (36)                      |
 
 All operations required by the exercise have been taught in this lesson or prior lessons. No future-lesson dependencies exist.

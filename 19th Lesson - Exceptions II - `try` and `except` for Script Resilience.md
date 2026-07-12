@@ -204,42 +204,37 @@ SKIPPED 'widget-C': invalid literal for int() with base 10: 'ten'
 widget-D: 12 unit(s)
 ```
 
----
-
 ## Quick Reference
 
-```
-# Basic try/except with a specific exception type
-$ python3 -c "
+```python
+# Catch a specific exception type and access its message
+# Use 'as' to bind the exception object so you can inspect or print it
+# Input: int('abc') → Output: Caught: invalid literal for int() with base 10: 'abc'
 try:
     x = int('abc')
 except ValueError as e:
     print(f'Caught: {e}')
-"
-Caught: invalid literal for int() with base 10: 'abc'
 
-# Handling a missing dictionary key
-$ python3 -c "
+# Guard against a missing dictionary key
+# Input: d = {'a': 1}, access d['z'] → Output: Missing key: 'z'
 d = {'a': 1}
 try:
     val = d['z']
 except KeyError as e:
     print(f'Missing key: {e}')
-"
-Missing key: 'z'
 
-# Multiple exception types in one except clause
-$ python3 -c "
+# Catch multiple exception types with one except clause
+# Tuple syntax (ExceptionA, ExceptionB) handles either error the same way
+# Input: d = {'x': 'hello'}, int(d['x']) → Output: Error: invalid literal for int() with base 10: 'hello'
 d = {'x': 'hello'}
 try:
     result = int(d['x'])
 except (KeyError, ValueError) as e:
     print(f'Error: {e}')
-"
-Error: invalid literal for int() with base 10: 'hello'
 
-# Separate except blocks for different handling
-$ python3 -c "
+# Use separate except blocks to handle different exceptions differently
+# Only the first matching except block runs; the rest are skipped
+# Input: d = {}, int(d['key']) → Output: Key was missing
 d = {}
 try:
     result = int(d['key'])
@@ -247,23 +242,20 @@ except KeyError:
     print('Key was missing')
 except ValueError:
     print('Value was not numeric')
-"
-Key was missing
 
-# Exception without 'as' — when you do not need the message
-$ python3 -c "
+# Catch an exception without binding it when the message isn't needed
+# Useful when you just need to react to the failure, not inspect it
+# Input: int('') → Output: Got empty string, using default / num = 0
 try:
     num = int('')
 except ValueError:
     print('Got empty string, using default')
     num = 0
 print(f'num = {num}')
-"
-Got empty string, using default
-num = 0
 
-# Demonstrating that code after the failing line in try is skipped
-$ python3 -c "
+# Demonstrate that code after the failing line in try is skipped
+# Execution jumps straight to the except block once an exception is raised
+# Input: int('oops') → Output: before / caught it / script continues
 try:
     print('before')
     x = int('oops')
@@ -271,13 +263,7 @@ try:
 except ValueError:
     print('caught it')
 print('script continues')
-"
-before
-caught it
-script continues
 ```
-
----
 
 ## Exercise
 
