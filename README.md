@@ -24,4 +24,4 @@ The [lesson artifact](./Python%20Lesson%20Plan%20for%20SDKs.md) in this repo con
 
 ## Personal progress 
 
-As of May 25, 2026, I am up to lesson 36, [curl vs SDK calls — reading raw API behavior](./36th%20Lesson%20—%20curl%20vs%20SDK%20calls%20—%20reading%20raw%20API%20behavior.md).
+As of July 12, 2026, I am up to lesson 37, [Making HTTP Requests with `requests` — GET and Response Basics](./37th%20Lesson%20—%20Making%20HTTP%20Requests%20with%20`requests`%20—%20GET%20and%20Response%20Basics.md).
