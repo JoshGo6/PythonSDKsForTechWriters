@@ -22,6 +22,6 @@ The [lesson artifact](./Python%20Lesson%20Plan%20for%20SDKs.md) in this repo con
 > [!caution]
 > LLMs, like human, are fallible. It's quite common to find errors in LLM output, and I've found errors in the generated lessons, including in the exercises. If you wish to clone this repo, it is upon you to verify that the material produced is accurate.
 
-## Personal progress 
+## Personal progress
 
-As of July 12, 2026, I am up to lesson 37, [Making HTTP Requests with `requests` — GET and Response Basics](./37th%20Lesson%20—%20Making%20HTTP%20Requests%20with%20`requests`%20—%20GET%20and%20Response%20Basics.md).
+As of July 27, 2026, I am up to lesson 38, [Making HTTP Requests with requests — POST, Headers, and Authentication](./38th%20Lesson%20—%20Making%20HTTP%20Requests%20with%20requests%20—%20POST,%20Headers,%20and%20Authentication.md).
