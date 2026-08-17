@@ -11,16 +11,28 @@ This document is a reusable curriculum contract between the learner (Josh) and a
 
 Its purpose is to:
 
-- Provide a structured, fast‑track learning path for Python.
+- Provide a structured, fast-track learning path for Python.
 - Focus primarily on the Python needed to effectively use and document the GitHub Python SDK (PyGithub).
-- Secondarily, provide instruction on reading from, writing to, and manipulating text documents (the stuff you actually want to automate).
+- Secondarily, provide instruction on reading from, writing to, and manipulating text documents (the stuff Josh actually wants to automate).
 - Serve as a stable input artifact that can be uploaded into a future conversation so the LLM can generate individual lessons on demand.
 
 This artifact defines the lesson roadmap and the rules for generating individual lessons.
 
+## Read the house style first
+
+Before writing any part of a lesson, read:
+
+```
+/mnt/skills/user/python-house-style/references/house-style.md
+```
+
+It holds the clarity rules, the lookup table rules, the fixture conventions, the callout format, and the verification standard, and it is the only copy of them. This skill does not restate them. If it is missing from disk or not uploaded with the user prompt, say so rather than proceeding from recall — the rules in it are the ones that keep lessons from needing rework.
+
 ## Instructions for the LLM When Generating a Lesson
 
-When the user says:
+These rules apply to every lesson in the roadmap, from Lesson 1 onward. If an earlier lesson was generated under a previous version of this contract, regenerating it under this one is the correct thing to do — the roadmap entry is the specification, not whatever file already exists.
+
+When Josh says:
 
 > "Generate Lesson X"
 
@@ -29,10 +41,12 @@ You must:
 1. Follow the scope defined in this artifact.
 2. Assume prior lessons have already been completed.
 3. Reinforce earlier material where appropriate.
-4. Keep the exercises in the lessons completable within 30 minutes (excluding reading time).
-5. Use the required lesson structure.
-6. Perform an audit on your lesson before presenting your final output to the reader.
+4. Use the required lesson structure below.
+5. Write to the house style.
+6. Verify the lesson by executing it, before presenting any of it to Josh. Verify silently.
 7. Follow the constraints given in this document.
+
+The exercises are deliberately scaled to real work.
 
 ## Required Lesson Structure
 
@@ -44,29 +58,64 @@ Each generated lesson must contain the following elements, in the order they're 
 2. **Syntax Section**
     - Show the relevant syntax patterns.
     - Explain what each component does.
+    - Where two calls are easily confused, show them adjacent in one block with the difference commented.
 3. **Worked Examples (2-3)**
     - Fully runnable examples.
     - Clearly explain what is happening.
     - Use realistic patterns aligned with SDK usage and text-processing scripts.
-4. **Quick Reference**
-    - A single code block of Python code, complete with a `python` code slug that contains doublets.
-    - A "doublet" is a comment line followed by one or more lines of Python code in the script, followed by a blank line.
-    - Each doublet illustrates Python syntax covered in the lesson.
-    - All new Python syntax introduced MUST be covered in the quick reference.
+4. **Lookup Table**
+    - A Markdown table consolidating every piece of syntax the lesson introduced. Its columns and rules are in the house style.
+    - All new syntax introduced in the lesson MUST appear in it.
 5. **Exercises (1)**
     - Require use of _new_ material from the current lesson.
-    - Should take no more than 30 minutes to complete, excluding the time to read the lesson and exercise instructions.
-    - Should not contain hints as to how to complete the exercises.
+    - Should not contain hints as to how to complete the exercise.
     - **Hard rule**: Should reinforce previous lessons by requiring knowledge of them.
     - Should reinforce a diverse set of skills from previous lessons, instead of just skills from one previous lesson. Additionally, should require skills from the previous five lessons, if doing so would not make the exercise be awkward. If this would result in the exercise being awkward, use skills from a subset of the previous five lessons so that the exercise won't be awkward.
     - **Hard rule:** An exercise **MUST NOT** require _any_ Python operation, syntax, library, or tool that has not been taught in the current lesson or in earlier lessons. If a helpful technique exists but is "coming later," the exercise must not depend on it. In other words, exercises require the use of the current lesson and previous lessons, not future lessons.
     - **Hard rule:** Every exercise must require the learner to write and run code that produces output testable at the command line. An exercise that involves only passive reading or providing a written answer is not sufficient.
-    - Should not hint to the user how to perform the exercise.
-    - Should present the desired output so the user can verify that he got the correct answer.
+    - Should present the desired output so Josh can verify that he got the correct answer. That output must be copied from a real run of your own solution, never composed by hand.
 
-## Audit
+## Verification specific to lessons
 
-After drafting the exercises but before presenting them, you must perform an explicit audit of the entire lesson, including the exercises. For each exercise, identify every Python operation, syntax pattern, library, and built-in function it requires. Then verify that each one was introduced in the current lesson or in a prior lesson's roadmap entry. If any exercise depends on something from a future lesson — even something minor like a loop, a conditional, or an import — revise the exercise to eliminate the dependency before presenting the lesson. If a revision needs to take place, use your judgement as to whether its appropriate to revise the lesson so that it covers the dependency, or to revise the exercise as to eliminate the dependency. Use the overall lesson roadmap to decide which is the most appropriate action. Do not present the lesson until every exercise passes this check. Before presenting the lesson, output a short audit table or list showing each exercise, the operations it requires, and which lesson introduced each one. Then present the lesson.
+The general verification standard is in the house style. Two checks belong only to lessons:
+
+**Solve the exercise yourself.** Write a complete working solution and run it. This is what proves the exercise is possible with only the material taught so far, and it is the only reliable source for the expected output you show the learner. Do not include your solution in the lesson.
+
+**Check dependencies across the whole lesson.** Create an audit of every Python operation, syntax pattern, library, built-in function, and language construct the lesson uses, and verify each was introduced in the current lesson or a prior roadmap entry. If any depends on a future lesson — even a loop, a conditional, an import, a `class`, or a decorator — decide, using the roadmap, whether to rewrite the code to remove the dependency or to extend the lesson to cover it. Do this against the syntax index if one is present in the uploaded reference set; otherwise against the roadmap.
+
+The audit covers every line of Python the lesson contains — the terminology section, the syntax blocks, the worked examples, the setup and fixture code, and the exercise. A worked example or a published fixture that uses syntax the learner has not met is the same defect as an exercise that does, and it is the harder one to notice, because nothing fails when he runs it — he simply cannot read what he is running.
+
+**When a forward dependency is genuinely unavoidable, mark it, do not hide it.** Some fixtures cannot be written within the taught set: `http.server` cannot be used without `class`, `self`, and inheritance, and the PyGithub stub server in lessons 47-58 has the same problem. Rewriting is the first choice and marking is the fallback, permitted only for code the learner runs rather than writes. When it applies, all four of these are required:
+
+- A sentence immediately before the code, telling Josh he does not need to read it.
+- The names of the constructs it uses that he has not met, and the roadmap lessons that cover them.
+- The reason it could not be avoided.
+- A statement that nothing in the syntax section, the worked examples, or the exercise requires understanding it, having confirmed that this is true.
+
+Comments inside the code carry the same marking where a reader is likely to stop and puzzle at a specific line. The test is whether Josh can tell, without asking, which parts of the page he is expected to follow and which parts are scaffolding.
+
+Never let an unavoidable dependency reach the exercise. The exercise hard rule above admits no exception: the learner writes that code, so every construct in it must already be taught.
+
+All of this is done silently. Nothing about the audit is printed with the lesson — but the marking itself is part of the lesson text and always ships.
+
+## Lessons 47-58 — PyGithub cannot be reached from this container
+
+Outbound network is blocked and PyGithub is not installed, so nothing in the PyGithub lessons can be executed unless Josh supplies the package. Do not generate lessons 47-58 with invented output.
+
+**Before generating any of these, ask Josh to upload the PyGithub wheel or sdist once.** He downloads it from PyPI on his own machine; it is a single file, and it is reusable for the whole run of lessons. Then:
+
+1. Install it offline: `pip install --no-index --find-links <dir> PyGithub`. This is the same technique already proven for the `pip` and `venv` reference pages.
+2. Serve GitHub-shaped JSON from a local `ThreadingHTTPServer` on `127.0.0.1`, as `HTTP Essentials` already does for `requests`. It must be `ThreadingHTTPServer` — a single-threaded `HTTPServer` never accepts the second request and the script hangs with no error.
+3. Point the real client at it: `Github(base_url="http://127.0.0.1:PORT")`. PyGithub supports a custom base URL for GitHub Enterprise, so every example runs through genuine PyGithub code.
+4. Publish the server in the lesson's setup section, the way the echo server is published, and say plainly that swapping the base URL back hits real GitHub. The server is fixture code written with `class` and `self`, so it carries the marking required under **Check dependencies across the whole lesson** above.
+
+With the package on disk you can also read its source directly, which is the authority for signatures, exception types, and pagination behavior. Never source those from the local server's behavior — the server is your fixture, not the SDK.
+
+If Josh declines to upload it, say which claims cannot be verified before generating, and let him decide.
+
+## Handing off to Josh
+
+At delivery, in chat prose and not in a file, name the topics the lesson introduced in a few lines, and flag any claim that contradicts something an earlier lesson or an existing reference page states. That is the whole handoff.
 
 ## Constraints
 
@@ -79,57 +128,27 @@ After drafting the exercises but before presenting them, you must perform an exp
     - Reading/writing files safely (encoding, newlines, paths).
     - "Glue code" patterns: loops, conditionals, functions, exceptions, logging, CLI args.
     - Consuming SDK objects and translating SDK behavior into docs-friendly explanations.
-    - **Hard rule:** An exercise **MUST NOT** require _any_ Python operation, syntax, library, or tool that has not been taught in the current lesson or in earlier lessons. If a helpful technique exists but is "coming later," the exercise must not depend on it but instead must give details on its use sufficient to understand the material in the lesson and to perform the coding exercise at the end.
-- **Hard rule:** Callout slugs (`> [!note]`, `> [!tip]`, etc.) must appear on their own line. The content must begin on the following line. Never place body text on the same line as the slug.
-    
-    ## Output Format
-    
-    The output you, the LLM, create must be in a single Markdown file for use in Obsidian. If you have parenthetical notes, important information, tips, or warnings, you can use these formats, where you MUST put the note-type slug (for example `> [!tip]`) on the first line, by itself, rather than run it into the text. The following examples show incorrect patterns and correct patterns for callouts. Do not use the incorrect patterns. **HARD RULE:**: You **MUST** use the correct patterns. 
-    
-**Incorrect pattern for a note:**
 
-> [!note] Closing the file terminates the process.
+## Output Format
 
-**Correct pattern for a note:**
+The output you, the LLM, create must be a single Markdown file for use in Obsidian. Formatting rules — callouts, fences, tables — are in the house style.
 
-> [!note]  
-> Closing the file terminates the process.
+Run the lesson validator before delivering:
 
-**Incorrect pattern for a tip:**
+```bash
+python3 /mnt/skills/user/python-reference-set/scripts/check_lesson.py <lesson file>
+```
 
-> [!tip] Closing the file terminates the process.
-
-**Correct pattern for a tip:**
-
-> [!tip]  
-> Closing the file terminates the process.
-
-**Incorrect pattern for info:**
-
-> [!info] Closing the file terminates the process.
-
-**Correct pattern for info:**
-
-> [!info]  
-> Closing the file terminates the process.
-
-**Incorrect pattern for a warning:**
-
-> [!warning] Closing the file terminates the process.
-
-**Correct pattern for a warning:**
-
-> [!warning]  
-> Closing the file terminates the process.
+Fix everything it reports, then rerun. It catches the mechanical failures that are otherwise caught by reading: malformed callouts, missing or ragged lookup tables, unbackticked exception names, code in an unlabeled fence, and relic sections.
 
 ## Final Objective
 
-By completing these lessons, the learner will:
+By completing these lessons, Josh will:
 
 - Be fluent enough in Python to read and write scripts using PyGithub and work with mastery in most Python-centric SDKs.
 - Be able to work with REST APIs directly using the `requests` library, including authenticated requests, error handling, and response parsing — essential for API documentation work where SDKs may not exist or where understanding the raw API behavior is required.
 - Understand how SDK abstractions map to REST APIs.
-- Be capable of producing meaningful, employer‑ready SDK documentation for any Python-centric SDK, not just PyGithub.
+- Be capable of producing meaningful, employer-ready SDK documentation for any Python-centric SDK, not just PyGithub.
 - Be able to understand and document Python that developers write, including common patterns like list comprehensions, type hints, `*args`/`**kwargs`, `@property`, lambda expressions, and `async/await`.
 - Know what to look up when encountering unfamiliar Python patterns.
 - Be able to write Python scripts to process text documents to extract text, modify text, and reorganize text for his technical writing job. This includes editing documents in place, as well as creating new documents from existing documents.
@@ -138,7 +157,7 @@ This curriculum intentionally avoids advanced software engineering depth. It pri
 
 ---
 
-#### Lesson Roadmap
+## Lesson Roadmap
 
 ### Phase 1 — Core Python, built for scripts
 
@@ -301,7 +320,7 @@ Teach installing and using the `requests` library for GET requests. Cover `reque
 
 #### Lesson 38: Making HTTP requests with `requests` — POST, headers, and authentication
 
-Teach `requests.post()`, `requests.put()`, and `requests.delete()`. Cover sending JSON bodies (`json=`), custom headers (`headers=`), and authentication patterns: API keys in headers, Bearer tokens, and basic auth. Emphasize loading tokens from environment variables (Lesson 31). Exercises send authenticated requests to a test API, handle the responses, and print doc-friendly summaries of what the API returned.
+Teach `requests.post()`, `requests.put()`, `requests.patch()`, and `requests.delete()`. Cover sending JSON bodies (`json=`), custom headers (`headers=`), and authentication patterns: API keys in headers, Bearer tokens, and basic auth. Show `PUT` and `PATCH` adjacent against the same record, since sending a partial `PUT` destroys the omitted fields and still returns a success status. Emphasize loading tokens from environment variables (Lesson 31). Exercises send authenticated requests to a test API, handle the responses, and print doc-friendly summaries of what the API returned.
 
 #### Lesson 39: API response handling and debugging
 

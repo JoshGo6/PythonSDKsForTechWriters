@@ -534,7 +534,7 @@ else:
 
 ## Quick Reference
 
-![Regex - Quick Reference](../Paths,%20writing,%20and%20regex/Regex%20-%20Quick%20Reference.md)
+![Regex - Quick Reference - old](../Paths,%20writing,%20and%20regex/Regex%20-%20Quick%20Reference%20-%20old.md)
 
 ---
 

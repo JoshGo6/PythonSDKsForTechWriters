@@ -17,11 +17,11 @@ A typical use case addressed by this course is a situation where a Markdown docu
 
 ## Instructions for use
 
-The [lesson artifact](./Python%20Lesson%20Plan%20for%20SDKs.md) in this repo contains the motivation for the course, a description of its 63 lessons (as of this writing), course constraints, and output format specifications. Each lesson culminates in a coding exercise. To generate a lesson, upload the lesson artifact into your LLM, along with a prompt like, "Generate lesson 42 from the uploaded document." The lesson artifact contains all of the information your LLM needs to generate the lesson.
+Upload to your LLM all the files in [Upload to LLM](./Upload%20to%20LLM/). These files contain the motivation for the course, a description of its 63 lessons (as of this writing), course constraints, output format specifications, and a syntax validator. Each lesson culminates in a coding exercise. Along with the files, provide a prompt like, "Generate lesson 42." The files contain all of the information your LLM needs to generate the lesson.
 
 > [!caution]
 > LLMs, like human, are fallible. It's quite common to find errors in LLM output, and I've found errors in the generated lessons, including in the exercises. If you wish to clone this repo, it is upon you to verify that the material produced is accurate.
 
 ## Personal progress
 
-As of July 27, 2026, I am up to lesson 38, [Making HTTP Requests with requests — POST, Headers, and Authentication](./38th%20Lesson%20—%20Making%20HTTP%20Requests%20with%20requests%20—%20POST,%20Headers,%20and%20Authentication.md).
+As of August 16, 2026, I am up to lesson 38, [Making HTTP Requests with requests — POST, Headers, and Authentication](./38th%20Lesson%20—%20Making%20HTTP%20Requests%20with%20requests%20—%20POST,%20Headers,%20and%20Authentication.md).

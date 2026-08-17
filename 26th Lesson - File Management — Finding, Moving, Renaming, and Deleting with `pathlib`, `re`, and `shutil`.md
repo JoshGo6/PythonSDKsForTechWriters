@@ -221,7 +221,7 @@ Key details:
 
 ## Quick Reference
 
-![File Management - Quick Reference](../Paths,%20writing,%20and%20regex/File%20Management%20-%20Quick%20Reference.md)
+![File Management - Quick Reference - old](../Paths,%20writing,%20and%20regex/File%20Management%20-%20Quick%20Reference%20-%20old.md)
 
 ## Exercises
 

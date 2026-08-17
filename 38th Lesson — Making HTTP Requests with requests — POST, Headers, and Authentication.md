@@ -1,864 +1,555 @@
-# Lesson 38 — `requests`: POST, Headers, and Authentication
+# Lesson 38 - Sending Data and Authenticating with requests
 
-**Phase 3 — HTTP and API mental models (SDK user edition)**
+Lesson 37 read data with `requests.get()`. This lesson writes it: creating records, changing them, removing them, and proving to the server that you are allowed to. The four calls are `requests.post()`, `requests.put()`, `requests.patch()`, and `requests.delete()`, and they differ from `get()` in two ways — they carry a body, and they almost always carry credentials.
 
-In Lesson 37 you asked servers for data. This lesson covers sending data _to_ a server, attaching headers, and proving who you are. These three things are what every SDK does under the hood on your behalf.
+## Setup — a local API that accepts writes
 
----
+Every example below runs against a small API on your own machine. Save this as `docs_api.py` and leave it running in its own terminal while you work through the lesson.
 
-## 1. Terminology and Theory
-
-### Request body (payload)
-
-The **body** is the data you send to the server. A `GET` request normally has no body — everything it needs is in the URL. A `POST` or `PUT` almost always has one.
-
-Think of it this way:
-
-|Part of the request|What it carries|Example|
-|---|---|---|
-|URL|_Which_ resource|`https://api.github.com/repos/octocat/hello/issues`|
-|Method|_What kind_ of operation|`POST`|
-|Headers|Metadata about the request|`Authorization`, `Content-Type`|
-|Body|The data itself|`{"title": "Docs typo"}`|
-
-### Serialization
-
-Your payload starts as a Python dict. It has to travel over the network as text. Converting the dict to JSON text is called **serialization**. You already did this manually in Lesson 28 with `json.dumps()`. The `requests` library can do it for you.
-
-### `json=` versus `data=`
-
-These two keyword arguments look interchangeable. They are not.
-
-- `json=payload` — serializes the dict to JSON and sets the header `Content-Type: application/json` automatically. This is what you want for modern REST APIs.
-- `data=payload` — when given a dict, encodes it as an HTML form (`Content-Type: application/x-www-form-urlencoded`). When given a string, sends that string as-is and sets no content type.
-
-> [!tip] If an API returns `400 Bad Request` on a POST that "looks right," check whether you used `data=` when the API expected `json=`. This is one of the most common beginner mistakes, and it is worth a troubleshooting entry in any API doc you write.
-
-### Headers
-
-A **header** is a key/value pair of metadata attached to the request. You pass them as a dict. Four you will meet constantly:
-
-- `Authorization` — your credentials.
-- `Content-Type` — describes the format of the body you are **sending**.
-- `Accept` — describes the format you want **back**.
-- `User-Agent` — identifies the client software. `requests` sets this to something like `python-requests/2.32.3` unless you override it.
-
-`Content-Type` and `Accept` point in opposite directions. Getting them confused is a classic source of confusing 415 and 406 responses.
-
-### Authentication versus authorization
-
-- **Authentication** answers "who are you?" A failure here is `401 Unauthorized`.
-- **Authorization** answers "are you allowed to do this?" A failure here is `403 Forbidden`.
-
-The distinction matters when you write troubleshooting docs: a 401 means fix your token, a 403 means fix your permissions or scopes. They are not the same problem.
-
-### Three authentication patterns
-
-|Pattern|What it looks like on the wire|Used by|
-|---|---|---|
-|Bearer token|`Authorization: Bearer ghp_abc123`|GitHub, most modern REST APIs|
-|API key header|`X-API-Key: abc123`|Many vendor APIs; the header name varies|
-|Basic auth|`Authorization: Basic am9zaDpwYXNz`|Older APIs, internal services|
-
-Basic auth is a username and password joined by a colon and Base64-encoded. Base64 is **encoding, not encryption** — anyone who sees the header can decode it instantly. It is only safe over HTTPS.
-
-There is no universal rule for API key header names. `X-API-Key`, `api-key`, and `X-Auth-Token` are all common. Always read the API's own documentation.
-
-### Why the method matters when you write docs
-
-`GET`, `PUT`, and `DELETE` are meant to be **idempotent**: sending the same request twice produces the same end state. `POST` usually is not — POST twice and you often create two issues, two comments, two records.
-
-This is exactly the detail that belongs in your documentation, because it determines whether a user can safely retry a failed call.
-
-### Status codes you will see on writes
-
-|Code|Meaning|What your script should do|
-|---|---|---|
-|200|OK, response has a body|Parse it|
-|201|Created — often includes a `Location` header pointing at the new resource|Parse it; report the new resource|
-|204|No Content — success, empty body|Do **not** parse it|
-|400|Malformed request|Fix the body or parameters|
-|401|Not authenticated|Fix the token|
-|403|Authenticated but not permitted|Fix the scopes or permissions|
-|404|No such resource — or you lack permission to know it exists|Check the path|
-|422|Well-formed but semantically invalid|Fix the field values|
-
-> [!warning] Calling `.json()` on a `204 No Content` response raises an exception, because there is no body to parse. Check the status code before parsing. Lesson 39 turns this habit into a reusable pattern.
-
-### Where the token lives
-
-Never put a token in your source code. Read it from an environment variable with `os.getenv()` (Lesson 31), and fail immediately with a clear message when it is missing. A token pasted into a script eventually gets committed, and a committed token has to be revoked.
-
-### The test server for this lesson
-
-`httpbin.org` echoes your request back to you as JSON. When you POST to `https://httpbin.org/post`, the response tells you exactly what the server received — body, headers, and all. That makes it the ideal place to _see_ what `requests` did on your behalf.
-
----
-
-## 2. Syntax
-
-### POST with a JSON body
+Save it and run it — you do not need to read it. It is written with `class`, `self`, and inheritance, which Lessons 43-46 cover and this lesson does not use; Python's `http.server` cannot be used any other way. Nothing in the syntax section, the worked examples, or the exercise requires understanding any of it. The endpoint table below is the only part you need.
 
 ```python
-import requests
+"""A tiny local stand-in for a docs-issue API. Run it in its own terminal.
 
-payload = {"title": "Docs typo", "body": "Fix the heading."}
-response = requests.post("https://httpbin.org/post", json=payload, timeout=10)
-```
+    python3 docs_api.py
 
-- `requests.post(url, ...)` — sends a POST request.
-- `json=payload` — serializes `payload` to JSON and sets `Content-Type: application/json`.
-- `timeout=10` — give up after 10 seconds instead of hanging forever.
+It listens on http://127.0.0.1:8077.
+"""
+import base64
+import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-> [!note] `timeout` is optional but you should always pass it. Without it, a stalled server can freeze your script indefinitely. Ten to thirty seconds is a reasonable default for API work.
+TOKEN = "docs-token-123"
+USER = "docs-bot"
 
-### POST form-encoded data
-
-```python
-form_fields = {"username": "josh", "role": "writer"}
-response = requests.post("https://httpbin.org/post", data=form_fields, timeout=10)
-```
-
-Same method, different encoding. Use this only when the API asks for form data.
-
-### Custom headers
-
-```python
-headers = {
-    "Authorization": "Bearer my-secret-token",
-    "Accept": "application/json",
-    "X-Docs-Client": "zenmeter-notes/1.0",
+ISSUES = {
+    1: {"number": 1, "title": "auth.md is out of date", "body": "Rewrite the token section.",
+        "state": "open", "labels": ["docs", "auth"], "user": "jdoe"},
+    2: {"number": 2, "title": "rate-limit.md missing example", "body": "Add a 403 example.",
+        "state": "open", "labels": [], "user": "jdoe"},
 }
+NEXT_NUMBER = 3
 
-response = requests.post(
-    "https://httpbin.org/post",
-    json=payload,
-    headers=headers,
-    timeout=10,
-)
+
+# class / self / inheritance: Lessons 43-46. Nothing below is needed for this lesson.
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *args):
+        pass  # keep the server quiet
+
+    def send_json(self, status, payload):
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def read_body(self):
+        length = int(self.headers.get("Content-Length", 0))
+        return self.rfile.read(length).decode("utf-8")
+
+    def authorized(self):
+        header = self.headers.get("Authorization", "")
+        if header == f"Bearer {TOKEN}":
+            return True
+        if header.startswith("Basic "):
+            decoded = base64.b64decode(header[6:]).decode("utf-8")
+            return decoded == f"{USER}:{TOKEN}"
+        return False
+
+    def deny(self):
+        self.send_json(401, {"error": "bad or missing credentials",
+                             "hint": "send Authorization: Bearer <token>"})
+
+    def issue_number(self):
+        return int(self.path.rsplit("/", 1)[1])
+
+    def do_GET(self):
+        if self.path == "/issues":
+            self.send_json(200, list(ISSUES.values()))
+        elif self.path.startswith("/issues/"):
+            n = self.issue_number()
+            if n in ISSUES:
+                self.send_json(200, ISSUES[n])
+            else:
+                self.send_json(404, {"error": f"no issue {n}"})
+        else:
+            self.send_json(404, {"error": "no such endpoint"})
+
+    def do_POST(self):
+        global NEXT_NUMBER
+        raw = self.read_body()
+        if self.path == "/echo":
+            self.send_json(200, {"method": "POST",
+                                 "content_type": self.headers.get("Content-Type"),
+                                 "raw_body": raw})
+            return
+        if not self.authorized():
+            self.deny()
+            return
+        if self.path != "/issues":
+            self.send_json(404, {"error": "no such endpoint"})
+            return
+        record = json.loads(raw)
+        record["number"] = NEXT_NUMBER
+        record.setdefault("state", "open")
+        ISSUES[NEXT_NUMBER] = record
+        NEXT_NUMBER += 1
+        self.send_json(201, record)
+
+    def do_PUT(self):
+        if not self.authorized():
+            self.deny()
+            return
+        n = self.issue_number()
+        if n not in ISSUES:
+            self.send_json(404, {"error": f"no issue {n}"})
+            return
+        record = json.loads(self.read_body())
+        record["number"] = n
+        ISSUES[n] = record  # the whole record is replaced
+        self.send_json(200, record)
+
+    def do_PATCH(self):
+        if not self.authorized():
+            self.deny()
+            return
+        n = self.issue_number()
+        if n not in ISSUES:
+            self.send_json(404, {"error": f"no issue {n}"})
+            return
+        ISSUES[n].update(json.loads(self.read_body()))  # merged into the record
+        self.send_json(200, ISSUES[n])
+
+    def do_DELETE(self):
+        if not self.authorized():
+            self.deny()
+            return
+        n = self.issue_number()
+        if n not in ISSUES:
+            self.send_json(404, {"error": f"no issue {n}"})
+            return
+        del ISSUES[n]
+        self.send_response(204)  # no content, no body at all
+        self.end_headers()
+
+
+if __name__ == "__main__":
+    print("docs API listening on http://127.0.0.1:8077 -- Ctrl-C to stop")
+    ThreadingHTTPServer(("127.0.0.1", 8077), Handler).serve_forever()
 ```
 
-- `headers` is a plain dict of strings.
-- Header names are case-insensitive on the wire, but write them in the conventional capitalization anyway.
-- Anything you put in this dict is added to (or overrides) what `requests` sends by default.
+It must be `ThreadingHTTPServer` and not `HTTPServer`. `requests` keeps the connection open after a call, and a single-threaded server never gets around to accepting the second request — the script hangs with no error and no traceback.
 
-### Bearer token from an environment variable
+The endpoints it understands:
 
-```python
-import os
+| Endpoint | What it does | Token required |
+| --- | --- | --- |
+| `GET /issues` | Lists every issue | No |
+| `GET /issues/<n>` | Reads one issue | No |
+| `POST /issues` | Creates an issue and assigns it a number | Yes |
+| `PUT /issues/<n>` | Replaces an issue with what you sent | Yes |
+| `PATCH /issues/<n>` | Merges what you sent into the issue | Yes |
+| `DELETE /issues/<n>` | Deletes an issue | Yes |
+| `POST /echo` | Repeats the body and content type it received | No |
 
-token = os.getenv("DOCS_API_TOKEN")
-headers = {"Authorization": f"Bearer {token}"}
-```
-
-The literal word `Bearer`, then a single space, then the token. The space is required.
-
-### Basic authentication
-
-```python
-response = requests.get(
-    "https://httpbin.org/basic-auth/user/passwd",
-    auth=("user", "passwd"),
-    timeout=10,
-)
-```
-
-- `auth=(username, password)` — a two-item tuple (Lesson 13). `requests` builds and encodes the `Authorization: Basic ...` header for you.
-
-An equivalent, more explicit form you will see in SDK source:
-
-```python
-from requests.auth import HTTPBasicAuth
-
-response = requests.get(url, auth=HTTPBasicAuth("user", "passwd"), timeout=10)
-```
-
-### PUT and DELETE
-
-```python
-response = requests.put("https://httpbin.org/put", json={"state": "closed"}, timeout=10)
-response = requests.delete("https://httpbin.org/delete", timeout=10)
-```
-
-The signatures match `post()`. `delete()` usually has no body.
-
-### Reading the response
-
-Everything from Lesson 37 still applies:
-
-```python
-print(response.status_code)      # 200
-print(response.headers["Content-Type"])
-data = response.json()           # dict, when the body is JSON
-```
-
-### Recognition only: `requests.Session()`
-
-You do not need to write this yet, but you will see it in SDK source code:
-
-```python
-session = requests.Session()
-session.headers.update({"Authorization": f"Bearer {token}"})
-response = session.get("https://api.github.com/user", timeout=10)
-```
-
-A `Session` holds headers and connection state so every call reuses them. When you read PyGithub's source later and see a session object being passed around, this is what it is doing: setting your auth header once instead of on every request.
-
----
-
-## 3. Worked Examples
-
-### Example 1 — POST a JSON body and read the echo
-
-```python
-"""Send a JSON body to httpbin and inspect what the server received."""
-
-import requests
-
-payload = {
-    "title": "Zenmeter usage export",
-    "labels": ["docs", "metering"],
-    "draft": True,
-}
-
-response = requests.post("https://httpbin.org/post", json=payload, timeout=10)
-
-print(f"Status: {response.status_code}")
-
-echo = response.json()
-
-print(f"Content-Type requests set: {echo['headers']['Content-Type']}")
-print(f"Title the server received: {echo['json']['title']}")
-print(f"First label received: {echo['json']['labels'][0]}")
-print(f"Raw body as text: {echo['data']}")
-```
-
-Expected output:
-
-```
-Status: 200
-Content-Type requests set: application/json
-Title the server received: Zenmeter usage export
-First label received: docs
-Raw body as text: {"title": "Zenmeter usage export", "labels": ["docs", "metering"], "draft": true}
-```
-
-What to notice:
-
-- You never called `json.dumps()`. `json=` serialized the dict for you.
-- You never set `Content-Type`. `json=` set it for you.
-- Python's `True` became JSON's `true` in the raw body. Serialization translates between the two languages' conventions.
-- `echo['json']` is httpbin's parsed copy of your body; `echo['data']` is the raw text that came across the wire.
-
-### Example 2 — Bearer token from the environment
-
-First set the token in your shell:
+The token it accepts is `docs-token-123`. Export it before running any example:
 
 ```bash
-export DEMO_TOKEN="test-token-9f2c"
+export DOCS_API_TOKEN=docs-token-123
 ```
 
+The server holds its data in memory, so restarting it resets the two starting issues. The examples in this lesson are written to run in order against a freshly started server, and the exercise assumes a fresh one too — restart it before you begin the exercise.
+
+The endpoint names and behavior are deliberately ordinary. Point `BASE` at a real service and the same four calls work unchanged.
+
+## Terminology — a body, a method, and credentials
+
+**The request body is the data you send.** A GET request asks for something and carries no body; the four methods in this lesson carry one. The body is a block of text with a **content type** — a header naming the format the text is in, so the server knows how to parse it. `application/json` and `application/x-www-form-urlencoded` are the two you will meet, and `requests` sets the header for you based on which argument you used.
+
+**The method is a verb, and the server decides what it means.** HTTP defines what each verb is *supposed* to do; nothing enforces it. The conventional meanings, which nearly every API follows:
+
+- `POST` creates something new. The server assigns the identifier, so you do not know the issue number until the response comes back.
+- `PUT` replaces a record wholesale with what you sent.
+- `PATCH` changes only the fields you sent and leaves the rest alone.
+- `DELETE` removes a record.
+
+`PUT` and `PATCH` are the pair worth memorizing, because sending a `PUT` when you meant a `PATCH` destroys every field you did not include, and the response looks successful.
+
+**Idempotent** means "doing it twice has the same effect as doing it once." `PUT` and `DELETE` are idempotent — replacing a record with the same content twice leaves the same record, and deleting something already deleted changes nothing further. `POST` is not: two identical `POST` calls create two records. This is why a retried `POST` is the one that produces duplicates.
+
+**Credentials** are the proof that you are allowed to write. They travel in a header on every single request — HTTP has no concept of "logging in and staying logged in," so there is no session to establish and nothing to keep alive. Three shapes cover almost everything:
+
+- An **API key** in a custom header, whose name the API picks: `X-API-Key: <key>`.
+- A **Bearer token** in the standard `Authorization` header: `Authorization: Bearer <token>`. This is what GitHub uses.
+- **Basic auth**, a username and password in the same header, encoded: `Authorization: Basic <encoded>`.
+
+## Syntax — the four calls, and what changes between them
+
+The shape is the same as `get()`: a URL, some keyword arguments, and a `Response` object comes back.
+
 ```python
-"""Authenticate with a Bearer token read from the environment."""
-
-import os
-
 import requests
 
-token = os.getenv("DEMO_TOKEN")
+BASE = "http://127.0.0.1:8077"
+headers = {"Authorization": "Bearer docs-token-123"}
+payload = {"title": "index.md 404s", "labels": ["docs"]}
 
-if token is None:
-    print("DEMO_TOKEN is not set. Nothing to send.")
+requests.post(f"{BASE}/issues", json=payload, headers=headers)     # create
+requests.put(f"{BASE}/issues/1", json=payload, headers=headers)    # replace
+requests.patch(f"{BASE}/issues/1", json=payload, headers=headers)  # change some fields
+requests.delete(f"{BASE}/issues/1", headers=headers)               # remove; no body to send
+```
+
+### `json=` builds a JSON body, `data=` builds a form body
+
+Both arguments take a dict, and choosing the wrong one is a `400` that says nothing about encoding. Run them side by side and look at what actually left your machine:
+
+```python
+payload = {"title": "Docs typo"}
+
+r = requests.post(f"{BASE}/echo", json=payload)
+print(r.request.headers["Content-Type"], "|", r.request.body)
+
+r = requests.post(f"{BASE}/echo", data=payload)
+print(r.request.headers["Content-Type"], "|", r.request.body)
+```
+
+```
+application/json | b'{"title": "Docs typo"}'
+application/x-www-form-urlencoded | title=Docs+typo
+```
+
+`json=` serializes the dict to JSON and sets `Content-Type: application/json`. `data=` with a dict encodes it the way an HTML form does and sets `Content-Type: application/x-www-form-urlencoded`, a flat list of `key=value` pairs with no way to express nesting. Anything nested is mangled rather than rejected:
+
+```python
+r = requests.post(f"{BASE}/echo", data={"title": "t", "labels": ["docs", "bug"]})
+print("list :", r.request.body)
+
+r = requests.post(f"{BASE}/echo", data={"title": "t", "user": {"login": "jdoe"}})
+print("dict :", r.request.body)
+```
+
+```
+list : title=t&labels=docs&labels=bug
+dict : title=t&user=login
+```
+
+The list survives only as a repeated key, and the nested dict is reduced to its *key* — `jdoe` never left your machine. APIs that document a JSON body want `json=`.
+
+`response.request` is the request object that `requests` built and sent, so `.request.body` and `.request.headers` are how you check what you actually transmitted rather than what you meant to. This is the fastest way to settle "is the API wrong or am I?"
+
+> [!warning] Passing both `json=` and `data=` silently drops the JSON
+> `data=` wins, the JSON body never leaves your machine, and nothing warns you.
+> ```python
+> r = requests.post(f"{BASE}/echo", json={"title": "Docs typo"}, data={"state": "open"})
+> print(r.request.headers["Content-Type"], "|", r.request.body)
+> ```
+> ```
+> application/x-www-form-urlencoded | state=open
+> ```
+
+### `PATCH` merges, `PUT` replaces
+
+The two calls look identical, and the responses are both `200`. The difference shows up in what the record holds afterwards:
+
+```python
+# Sends one field, changes one field. Everything else survives.
+requests.patch(f"{BASE}/issues/1", json={"state": "closed"}, headers=headers)
+
+# Sends one field, and the record is now only that field.
+requests.put(f"{BASE}/issues/1", json={"title": "auth.md is out of date"}, headers=headers)
+```
+
+Worked Example 2 runs both against the same issue and prints the record after each.
+
+### Three ways to send credentials
+
+The first two are just headers you build yourself. The third has its own argument.
+
+```python
+payload = {"title": "Docs typo"}
+
+r = requests.post(f"{BASE}/echo", json=payload, headers={"X-API-Key": "docs-token-123"})
+print("api key:", r.request.headers["X-API-Key"])
+
+r = requests.post(f"{BASE}/echo", json=payload,
+                  headers={"Authorization": "Bearer docs-token-123"})
+print("bearer :", r.request.headers["Authorization"])
+
+r = requests.post(f"{BASE}/echo", json=payload, auth=("docs-bot", "docs-token-123"))
+print("basic  :", r.request.headers["Authorization"])
+```
+
+```
+api key: docs-token-123
+bearer : Bearer docs-token-123
+basic  : Basic ZG9jcy1ib3Q6ZG9jcy10b2tlbi0xMjM=
+```
+
+`auth=` takes a `(username, password)` tuple and builds the `Authorization` header for you. What it builds is Base64, which is an encoding and not encryption — `base64.b64decode("ZG9jcy1ib3Q6ZG9jcy10b2tlbi0xMjM=")` gives back `docs-bot:docs-token-123` for anyone who intercepts it. Basic auth is only safe over HTTPS, and the same is true of a Bearer token.
+
+### The token comes from the environment, and a missing one is silent
+
+Lesson 31 covered the two readers. Which one you pick changes how the failure looks:
+
+```python
+import os
+
+token = os.getenv("DOCS_API_TOKEN")     # returns None when the variable is unset
+token = os.environ["DOCS_API_TOKEN"]    # raises `KeyError` when the variable is unset
+```
+
+`os.getenv()` is the safer default only if you check the result. Interpolating an unset variable into an f-string produces a header that is well-formed and wrong:
+
+```python
+token = os.getenv("DOCS_API_TOKEN")   # unset
+r = requests.post(f"{BASE}/issues", json=payload,
+                  headers={"Authorization": f"Bearer {token}"})
+print(r.status_code, "sent:", repr(r.request.headers["Authorization"]))
+```
+
+```
+401 sent: 'Bearer None'
+```
+
+Passing the `None` on its own instead is no better — `requests` treats a header value of `None` as an instruction to remove that header, so the request goes out with no `Authorization` at all and gets the same `401`. Both failures are indistinguishable from a bad token in the server's reply, which is why the guard belongs at the top of the script:
+
+```python
+token = os.getenv("DOCS_API_TOKEN")
+if not token:
+    print("DOCS_API_TOKEN is not set; nothing was sent.")
+```
+
+`if not token:` rather than `if token is None:` because a variable exported as an empty string is set, and an empty string is falsy — Lesson 14's distinction, and this is where it bites.
+
+> [!warning] A rejected write is still a delivered response
+> `requests` raises nothing on a `401`, `403`, `404`, or `500`. The call returns normally and the status code is the only signal that your write did not happen.
+> ```python
+> r = requests.post(f"{BASE}/issues", json=payload)   # no credentials at all
+> print(r.status_code, r.json())
+> ```
+> ```
+> 401 {'error': 'bad or missing credentials', 'hint': 'send Authorization: Bearer <token>'}
+> ```
+> A script that never checks `r.status_code` reports success on every write it failed to make. Lesson 39 turns this into a repeatable pattern.
+
+## Worked examples
+
+Start the server fresh and run these in order.
+
+### Example 1 — creating a record, and letting the server name it
+
+`POST` sends the fields you know and the response tells you what the server made of them. The issue number is in the response and nowhere else.
+
+```python
+import os
+import requests
+
+BASE = "http://127.0.0.1:8077"
+
+token = os.getenv("DOCS_API_TOKEN")
+if not token:
+    print("DOCS_API_TOKEN is not set; nothing was sent.")
 else:
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
+    headers = {"Authorization": f"Bearer {token}"}
+    new_issue = {
+        "title": "index.md 404s",
+        "body": "The link to auth.md is broken.",
+        "labels": ["docs", "bug"],
+        "user": "jdoe",
     }
 
-    response = requests.get("https://httpbin.org/bearer", headers=headers, timeout=10)
+    response = requests.post(f"{BASE}/issues", json=new_issue, headers=headers)
 
-    if response.status_code == 200:
-        result = response.json()
-        print(f"Authenticated: {result['authenticated']}")
-        print(f"Token the server saw: {result['token']}")
-    elif response.status_code == 401:
-        print("401 Unauthorized: the token was missing or malformed.")
-    else:
-        print(f"Unexpected status: {response.status_code}")
-```
+    print("status:", response.status_code)
+    print("sent  :", response.request.body)
+    print("type  :", response.request.headers["Content-Type"])
 
-Expected output:
-
-```
-Authenticated: True
-Token the server saw: test-token-9f2c
-```
-
-Now prove the failure path. Temporarily change the scheme in the header to `Token`, which some older APIs use and this endpoint does not accept:
-
-```python
-"Authorization": f"Token {token}",
-```
-
-The credentials are fine, but the scheme is wrong, so the endpoint rejects the request:
-
-```
-401 Unauthorized: the token was missing or malformed.
-```
-
-Change it back to `Bearer` when you are done.
-
-What to notice:
-
-- The guard clause runs before any network call. Failing fast on a missing token costs nothing and produces a clear message instead of a confusing 401.
-- A 401 does not always mean a bad token. Here the token was perfectly valid and the _scheme_ was wrong. This is why "check the exact header your client sends" belongs in every API troubleshooting section.
-- The `if / elif / else` on `status_code` is the shape of nearly every real API script.
-- `/bearer` is a free 401 generator. Being able to trigger an error on demand is how you verify error handling actually works.
-
-### Example 3 — PUT, DELETE, and basic auth in one tour
-
-```python
-"""Compare PUT, DELETE, and basic auth against httpbin."""
-
-import requests
-
-
-def describe(label, response):
-    """Print a one-line summary of a response."""
-    print(f"{label}: {response.status_code} {response.request.method}")
-
-
-put_response = requests.put(
-    "https://httpbin.org/put",
-    json={"state": "closed"},
-    timeout=10,
-)
-describe("PUT   ", put_response)
-print(f"  server received state = {put_response.json()['json']['state']}")
-
-delete_response = requests.delete("https://httpbin.org/delete", timeout=10)
-describe("DELETE", delete_response)
-
-basic_response = requests.get(
-    "https://httpbin.org/basic-auth/josh/hunter2",
-    auth=("josh", "hunter2"),
-    timeout=10,
-)
-describe("BASIC ", basic_response)
-print(f"  authenticated as {basic_response.json()['user']}")
-```
-
-Expected output:
-
-```
-PUT   : 200 PUT
-  server received state = closed
-DELETE: 200 DELETE
-BASIC : 200 GET
-  authenticated as josh
-```
-
-What to notice:
-
-- `describe()` is an ordinary function (Lesson 15) that takes a response object as an argument. Lesson 39 grows this idea into a full request-and-handle-errors helper.
-- `auth=("josh", "hunter2")` produced a valid `Authorization: Basic ...` header without you encoding anything.
-- `response.request.method` reads back the method actually sent — useful when a redirect quietly changes it.
-
-> [!info] `httpbin.org` is a public service and is occasionally slow or down. If a call hangs or fails to connect, wait a minute and retry, or point the same scripts at `https://postman-echo.com/post`, which echoes requests in a similar (not identical) shape.
-
----
-
-## 4. Quick Reference
-
-```python
-# Send a dict as a JSON body; sets Content-Type: application/json automatically
-response = requests.post("https://httpbin.org/post", json={"title": "Docs typo"})
-
-# Send a dict as HTML form data; sets Content-Type: application/x-www-form-urlencoded
-response = requests.post("https://httpbin.org/post", data={"title": "Docs typo"})
-
-# Always set a timeout in seconds so a stalled server cannot hang the script
-response = requests.post("https://httpbin.org/post", json={"a": 1}, timeout=10)
-
-# Attach custom headers as a plain dict of strings
-headers = {"Accept": "application/json", "X-Docs-Client": "zenmeter-notes/1.0"}
-response = requests.post("https://httpbin.org/post", json={"a": 1}, headers=headers)
-
-# Bearer token authentication: the word Bearer, a space, then the token
-token = os.getenv("DOCS_API_TOKEN")
-headers = {"Authorization": f"Bearer {token}"}
-
-# API key authentication: header name varies by API, so check its docs
-headers = {"X-API-Key": os.getenv("DOCS_API_TOKEN")}
-
-# Basic authentication as a (username, password) tuple; requests encodes it
-response = requests.get("https://httpbin.org/basic-auth/josh/hunter2", auth=("josh", "hunter2"))
-
-# Basic authentication, explicit form seen in SDK source
-from requests.auth import HTTPBasicAuth
-response = requests.get(url, auth=HTTPBasicAuth("josh", "hunter2"))
-
-# PUT sends a body like POST; DELETE usually sends none
-response = requests.put("https://httpbin.org/put", json={"state": "closed"}, timeout=10)
-response = requests.delete("https://httpbin.org/delete", timeout=10)
-
-# Read back the method actually sent
-print(response.request.method)
-
-# A Session reuses headers across calls (recognition only, common in SDK source)
-session = requests.Session()
-session.headers.update({"Authorization": f"Bearer {token}"})
-response = session.get("https://api.github.com/user", timeout=10)
-
-# Check the status before parsing: 204 has no body and .json() will fail on it
-if response.status_code == 200:
-    data = response.json()
-```
-
----
-
-## 5. Exercise
-
-### Scenario
-
-Your team has an internal "docs publishing" API. Before it exists, you are writing the client script against `httpbin.org` so the request shape can be reviewed.
-
-Write a script named `publish_note.py` that reads a Markdown release note, sends it as an authenticated JSON POST, and prints a summary a reviewer could paste into a ticket.
-
-### Setup
-
-1. Work inside your virtual environment with `requests` installed.
-    
-2. Create `release-note.md` with exactly this content:
-    
-
-```markdown
-# Zenmeter 3.2 Release Notes
-
-Metering data now exports to CSV.
-Fixed a bug in the usage rollup job.
-```
-
-3. Set the token in your shell:
-
-```bash
-export DOCS_API_TOKEN="demo-token-12345"
-```
-
-### Requirements
-
-1. The script accepts a required positional argument: the path to the Markdown file. It also accepts an optional `--url` argument that defaults to `https://httpbin.org/post`. Both must appear in `--help`.
-2. The token is read from the `DOCS_API_TOKEN` environment variable. If it is not set, the script prints the message shown below and stops without sending a request and without a traceback.
-3. The script reads the Markdown file and builds this payload:
-    - `title` — the first line of the file with the leading `#` removed.
-    - `body` — every remaining non-empty line, joined with a single space.
-    - `line_count` — the number of non-empty lines in the file, counting the heading.
-4. The script sends a POST to the URL with the payload as a JSON body and these three headers:
-    - `Authorization: Bearer <token>`
-    - `Accept: application/json`
-    - `X-Docs-Client: zenmeter-notes/1.0`
-5. If the status code is 200, the script prints the success output below, reading the values back out of the response body. If it is anything else, it prints the failure output and stops.
-6. The `Auth header sent` line shows the authentication scheme, four asterisks, and only the last four characters of the token. The full token must never appear in the output.
-7. The `Equivalent curl` line reproduces the request as a `curl` command, with the token redacted the same way.
-
-### Expected output
-
-Run it:
-
-```bash
-python publish_note.py release-note.md
+    created = response.json()
+    print(f"created #{created['number']}: {created['title']} ({created['state']})")
 ```
 
 ```
-POST https://httpbin.org/post -> 200
-Title sent: Zenmeter 3.2 Release Notes
-Lines counted: 3
-Content-Type set by requests: application/json
-Client header echoed: zenmeter-notes/1.0
-Auth header sent: Bearer ****2345
-Equivalent curl:
-curl -X POST -H "Authorization: Bearer ****2345" -H "Accept: application/json" -H "X-Docs-Client: zenmeter-notes/1.0" https://httpbin.org/post
+status: 201
+sent  : b'{"title": "index.md 404s", "body": "The link to auth.md is broken.", "labels": ["docs", "bug"], "user": "jdoe"}'
+type  : application/json
+created #3: index.md 404s (open)
 ```
 
-Now force a failure:
+Three things to take from the output. The status is `201` and not `200` — the "created" status, which is what a well-behaved API returns from a successful `POST`. The body that went out is bytes, already serialized from your dict, and `Content-Type` was set for you by `json=`. And the response carries two fields you never sent: `number`, assigned by the server, and `state`, which the server defaulted. Reading the created record back out of the response is how you learn either one.
 
-```bash
-python publish_note.py release-note.md --url https://httpbin.org/status/401
-```
+### Example 2 — `PUT` deletes the fields you did not send
 
-```
-POST https://httpbin.org/status/401 -> 401
-Request failed. Nothing was published.
-```
-
-Now unset the token and run it again:
-
-```bash
-unset DOCS_API_TOKEN
-python publish_note.py release-note.md
-```
-
-```
-DOCS_API_TOKEN is not set. Export it and try again.
-```
-
-All three runs must produce exactly the output shown.
-
-## Terminology and Theory
-
-In Lesson 37, you used `requests.get()` to retrieve data from an API. GET requests ask the server for information without changing anything. This lesson covers the other side of HTTP: sending data to a server and authenticating yourself so the server knows who you are.
-
-**POST request:** An HTTP request that sends data to a server, typically to create a new resource. When you submit a form on a website, file a support ticket, or create a GitHub issue, a POST request is what carries your data to the server.
-
-**PUT request:** An HTTP request that sends data to replace an existing resource entirely. If you wanted to update an issue's title and body, a PUT request would replace the entire issue object with the new version you provide.
-
-**DELETE request:** An HTTP request that asks the server to remove a resource. Deleting a comment, removing a label, or closing an account — all of these translate to DELETE requests at the HTTP level.
-
-**Request body:** The data payload attached to a POST or PUT request. In API work, the body is almost always a JSON object. The `requests` library provides a `json=` parameter that handles serialization and sets the correct `Content-Type` header automatically.
-
-**Request headers:** Key-value metadata sent alongside a request. Headers carry information the server needs to process your request — what format your data is in, who you are, what response format you accept. You already saw response headers in Lesson 37 (`.headers`). Now you will send custom headers of your own.
-
-**Authentication:** The process of proving your identity to an API. APIs need to know who is making a request so they can enforce permissions and rate limits. Three common patterns exist:
-
-- **API key in a header:** The server expects a specific header (often `X-API-Key`) containing a secret key. This is the simplest pattern.
-- **Bearer token:** The server expects an `Authorization` header whose value is the word `Bearer` followed by a space and then the token string. This is the pattern GitHub, most cloud APIs, and OAuth-based services use.
-- **Basic authentication:** The server expects an `Authorization` header containing a base64-encoded `username:password` pair. The `requests` library handles the encoding for you through its `auth=` parameter.
-
-> [!note] All three authentication patterns use headers to transmit credentials. The differences are in which header name the server expects and how the credential value is formatted. You already learned in Lesson 31 that tokens and keys should be loaded from environment variables, never hardcoded in your script.
-
-**`response.raise_for_status()`:** A method on the `Response` object that checks the status code and raises an `HTTPError` exception if the request failed (status code 400 or above). This is a shortcut for writing your own `if response.status_code >= 400` check. You will use this method in exercises, and Lesson 39 will cover response handling and debugging in full depth.
-
-## Syntax
-
-### Sending a POST request with a JSON body
-
-```python
-import requests
-
-payload = {"title": "Bug report", "body": "Login fails on mobile"}
-response = requests.post("https://httpbin.org/post", json=payload)
-```
-
-The `json=` parameter does three things at once: it converts the Python dictionary to a JSON string, attaches it as the request body, and sets the `Content-Type` header to `application/json`. You do not need to call `json.dumps()` yourself when using this parameter.
-
-### Sending a PUT request
-
-```python
-updated_data = {"title": "Updated title", "body": "Revised description"}
-response = requests.put("https://httpbin.org/put", json=updated_data)
-```
-
-The syntax is identical to `requests.post()`. The difference is semantic — PUT tells the server you are replacing an existing resource rather than creating a new one.
-
-### Sending a DELETE request
-
-```python
-response = requests.delete("https://httpbin.org/delete")
-```
-
-DELETE requests typically do not include a body. You are telling the server to remove the resource at that URL.
-
-### Custom headers with `headers=`
-
-```python
-custom_headers = {
-    "Accept": "application/json",
-    "X-Custom-Header": "my-value"
-}
-response = requests.get("https://httpbin.org/headers", headers=custom_headers)
-```
-
-The `headers=` parameter accepts a dictionary of header names and values. These are merged with the default headers that `requests` sends automatically (like `User-Agent`).
-
-### Authentication: API key in a header
+Both calls target the same issue and both succeed. Watch the record.
 
 ```python
 import os
+import requests
 
-api_key = os.getenv("MY_API_KEY")
-headers = {"X-API-Key": api_key}
-response = requests.get("https://api.example.com/data", headers=headers)
+BASE = "http://127.0.0.1:8077"
+headers = {"Authorization": f"Bearer {os.environ['DOCS_API_TOKEN']}"}
+
+
+def show(label):
+    issue = requests.get(f"{BASE}/issues/1").json()
+    print(f"{label:8} {issue}")
+
+
+show("before")
+
+# PATCH sends only the fields you want changed; everything else is left alone.
+requests.patch(f"{BASE}/issues/1", json={"state": "closed"}, headers=headers)
+show("patched")
+
+# PUT sends the whole record. Fields you leave out are gone from the record.
+requests.put(f"{BASE}/issues/1", json={"title": "auth.md is out of date"}, headers=headers)
+show("put")
 ```
 
-The server documentation tells you which header name to use. You load the key from an environment variable (Lesson 31) and pass it in the `headers=` dictionary.
+```
+before   {'number': 1, 'title': 'auth.md is out of date', 'body': 'Rewrite the token section.', 'state': 'open', 'labels': ['docs', 'auth'], 'user': 'jdoe'}
+patched  {'number': 1, 'title': 'auth.md is out of date', 'body': 'Rewrite the token section.', 'state': 'closed', 'labels': ['docs', 'auth'], 'user': 'jdoe'}
+put      {'title': 'auth.md is out of date', 'number': 1}
+```
 
-### Authentication: Bearer token
+The `PATCH` changed `state` and left `body`, `labels`, and `user` alone. The `PUT` sent a title that was already correct — an edit that changes nothing — and destroyed four fields doing it. Its response was `200` with a record that looks fine in isolation, which is exactly why this one is hard to catch by eye. When an API's documentation says a method "updates" a resource, check which of the two verbs it means before you send it.
+
+This example reads the token with `os.environ[...]` rather than `os.getenv(...)`, which is the other reasonable choice: it raises `KeyError` immediately instead of letting an unset token reach the server as the string `None`.
+
+### Example 3 — a `204` has no body to parse
+
+`DELETE` sends no body and, on success, usually gets none back.
 
 ```python
 import os
-
-token = os.getenv("GITHUB_TOKEN")
-headers = {"Authorization": f"Bearer {token}"}
-response = requests.get("https://api.github.com/user", headers=headers)
-```
-
-The `Authorization` header value must be the literal string `Bearer`, followed by a space, followed by the token. The f-string builds this formatted value from the variable.
-
-### Authentication: Basic auth with `auth=`
-
-```python
-response = requests.get(
-    "https://httpbin.org/basic-auth/myuser/mypass",
-    auth=("myuser", "mypass")
-)
-```
-
-The `auth=` parameter accepts a tuple of `(username, password)`. The `requests` library handles the base64 encoding and header formatting internally. You never need to construct the `Authorization: Basic ...` header yourself.
-
-### Combining body, headers, and auth
-
-```python
-import os
-
-token = os.getenv("API_TOKEN")
-headers = {
-    "Authorization": f"Bearer {token}",
-    "Accept": "application/json"
-}
-payload = {"name": "new-repo", "private": True}
-response = requests.post(
-    "https://api.example.com/repos",
-    json=payload,
-    headers=headers
-)
-```
-
-All parameters can be used together in the same call. This is the most common real-world pattern: an authenticated POST with a JSON body and explicit headers.
-
-## Worked Examples
-
-### Example 1: POST a JSON payload and inspect what the server received
-
-httpbin.org echoes back everything you send it, which makes it ideal for learning. This script sends a POST request with a JSON body and prints the server's view of what it received.
-
-```python
 import requests
 
-payload = {
-    "title": "Improve error messages",
-    "priority": "high",
-    "labels": ["ux", "error-handling"]
-}
+BASE = "http://127.0.0.1:8077"
+credentials = ("docs-bot", os.environ["DOCS_API_TOKEN"])
 
-response = requests.post("https://httpbin.org/post", json=payload)
-result = response.json()
+response = requests.delete(f"{BASE}/issues/2", auth=credentials)
+print("status      :", response.status_code)
+print("sent header :", response.request.headers["Authorization"])
+print("body        :", repr(response.text))
 
-print(f"Status: {response.status_code}")
-print(f"Content-Type sent: {result['headers']['Content-Type']}")
-print(f"Body received by server: {result['json']}")
+try:
+    response.json()
+except requests.exceptions.JSONDecodeError as exc:
+    print("json()      :", exc)
+
+# The second delete finds nothing to delete. requests does not treat that as a
+# failure -- the response arrives normally and the status code is the only signal.
+again = requests.delete(f"{BASE}/issues/2", auth=credentials)
+print("second try  :", again.status_code, again.json())
 ```
 
-**What is happening:** `requests.post()` sends the dictionary as a JSON-encoded body. The httpbin.org `/post` endpoint mirrors the request back as JSON, so `result['json']` contains exactly the dictionary you sent. The `result['headers']` dictionary shows the headers the server received, confirming that `Content-Type` was set to `application/json` automatically.
-
-**Expected output:**
-
 ```
-Status: 200
-Content-Type sent: application/json
-Body received by server: {'title': 'Improve error messages', 'priority': 'high', 'labels': ['ux', 'error-handling']}
+status      : 204
+sent header : Basic ZG9jcy1ib3Q6ZG9jcy10b2tlbi0xMjM=
+body        : ''
+json()      : Expecting value: line 1 column 1 (char 0)
+second try  : 404 {'error': 'no issue 2'}
 ```
 
-### Example 2: Sending custom headers and verifying them
+`204` means "done, and there is nothing to tell you." `response.text` is the empty string, and calling `.json()` on it raises `requests.exceptions.JSONDecodeError` with a message about column 1 that says nothing about the status code — so a script that parses every response the same way crashes on its successful deletes and not on its failed ones. Check the status before parsing.
 
-This script sends custom headers to httpbin.org's `/headers` endpoint, which echoes back all headers it received. This pattern is useful when you need to verify that your headers are reaching the server correctly.
+The second delete returns `404` with a JSON error body, and no exception is raised. Notice that both outcomes — deleted, and never existed — leave the server in the same state, which is what idempotent means in practice.
 
-```python
-import requests
+## Lookup table
 
-headers = {
-    "X-API-Key": "demo-key-12345",
-    "Accept": "application/json",
-    "X-Request-Source": "lesson-38-script"
-}
+| Use when | Call | Result |
+| --- | --- | --- |
+| Create a record | `requests.post(url, json=payload, headers=headers)` | `201`; response holds the record plus the number the server assigned |
+| Replace a whole record | `requests.put(url, json=payload, headers=headers)` | `200`; every field not in `payload` is gone from the record |
+| Change some fields | `requests.patch(url, json=payload, headers=headers)` | `200`; `payload` is merged in, other fields survive |
+| Remove a record | `requests.delete(url, headers=headers)` | `204` with an empty body; the record is gone |
+| Remove a record twice | `requests.delete(url, headers=headers)` | `404` with a JSON error body; no exception, server unchanged |
+| Send a JSON body | `json=payload` | Body `b'{"title": "Docs typo"}'`, `Content-Type: application/json` |
+| Send an HTML-form body | `data=payload` | Body `title=Docs+typo`, `Content-Type: application/x-www-form-urlencoded` |
+| Pass both by mistake | `requests.post(url, json=a, data=b)` | `data` wins; the JSON is dropped and nothing warns |
+| Send an API key | `headers={"X-API-Key": token}` | Header sent verbatim: `docs-token-123` |
+| Send a Bearer token | `headers={"Authorization": f"Bearer {token}"}` | Header sent as `Bearer docs-token-123` |
+| Send a username and password | `auth=("docs-bot", token)` | Header built for you: `Basic ZG9jcy1ib3Q6ZG9jcy10b2tlbi0xMjM=`, decodable by anyone |
+| Check what you actually sent | `response.request.body`, `response.request.headers` | The serialized body and the full header dict of the outgoing request |
+| Read a token, tolerating absence | `os.getenv("DOCS_API_TOKEN")` | The value, or `None` when unset — which reaches the server as `Bearer None` and gets a `401` |
+| Read a token, failing loudly | `os.environ["DOCS_API_TOKEN"]` | The value, or raises `KeyError` before any request is sent |
+| Unset a header on purpose | `headers={"Authorization": None}` | The header is omitted from the request entirely; the server sees no credentials |
+| Parse a body that is not there | `response.json()` on a `204` | Raises `requests.exceptions.JSONDecodeError`: `Expecting value: line 1 column 1 (char 0)` |
+| Detect a rejected write | `response.status_code` | The only signal; `401`, `403`, `404`, and `500` all return normally |
 
-response = requests.get("https://httpbin.org/headers", headers=headers)
-received = response.json()["headers"]
+## Exercise — apply a plan file of issue changes
 
-print("Headers the server received:")
-for name, value in received.items():
-    print(f"  {name}: {value}")
+Write `sync_issues.py`, a script that reads a file describing changes to make and sends each one to the API.
+
+Restart `docs_api.py` first so the data is back to its two starting issues, and save this as `issue-plan.json`:
+
+```json
+[
+  {
+    "action": "create",
+    "title": "index.md 404s",
+    "body": "The link to auth.md is broken.",
+    "labels": ["docs", "bug"]
+  },
+  {
+    "action": "create",
+    "title": "notes.txt has stale paths",
+    "body": "Paths still point at the old repo."
+  },
+  {
+    "action": "update",
+    "number": 2,
+    "state": "closed"
+  },
+  {
+    "action": "delete",
+    "number": 99
+  },
+  {
+    "action": "delete",
+    "number": 1
+  }
+]
 ```
 
-**What is happening:** The `headers=` dictionary is merged with the default headers that `requests` sends (like `Host` and `User-Agent`). The httpbin `/headers` endpoint returns all of them. Iterating over `received.items()` (Lesson 12) and printing each pair lets you verify that your custom headers arrived intact. This is a useful debugging technique when an API rejects your request — you can send the same headers to httpbin first to confirm they look correct.
+Requirements:
 
-**Expected output** (your `User-Agent` version may differ):
+1. Take the plan file's path as a positional argument, and support a `--dry-run` flag.
+2. Read the token from `DOCS_API_TOKEN`. If it is unset or empty, print `DOCS_API_TOKEN is not set.` and send nothing at all.
+3. Read and parse the plan file.
+4. Send each entry to the API with the method its `action` calls for, authenticated on every request. A `create` entry has no `number`, and the server assigns one. An `update` entry names the issue and carries the fields to change — treat every key other than `action` and `number` as a field to send, so the script keeps working when the plan changes a different field. Not every `create` entry carries every field.
+5. Print one line per entry: the method, the path, the status code, and a detail. For a create, the detail is the new number, the title, and the labels the record ended up with. For an update, the number, title, and state. For a successful delete, the word `deleted`. For anything that came back `400` or higher, the error message the API sent.
+6. A failed entry must not stop the run.
+7. Finish with a count of what was sent and what failed.
+8. `--dry-run` prints the method and path it would use for each entry and sends nothing, then reports how many were planned.
 
-```
-Headers the server received:
-  Accept: application/json
-  Host: httpbin.org
-  User-Agent: python-requests/2.31.0
-  X-Api-Key: demo-key-12345
-  X-Request-Source: lesson-38-script
-```
-
-### Example 3: Bearer token authentication with environment variables
-
-This script loads a GitHub token from an environment variable and uses Bearer authentication to fetch your own GitHub user profile. It combines environment variable loading (Lesson 31), GET with headers, and JSON response parsing (Lesson 37).
-
-> [!tip] To run this example, you need a GitHub personal access token. Set it in your shell before running the script: `export GITHUB_TOKEN="ghp_your_token_here"`.
-
-```python
-import os
-import sys
-import requests
-
-token = os.getenv("GITHUB_TOKEN")
-if not token:
-    print("Error: GITHUB_TOKEN environment variable is not set.")
-    print("Set it with: export GITHUB_TOKEN=\"ghp_your_token_here\"")
-    sys.exit(1)
-
-headers = {
-    "Authorization": f"Bearer {token}",
-    "Accept": "application/vnd.github+json"
-}
-
-response = requests.get("https://api.github.com/user", headers=headers)
-
-if response.status_code == 200:
-    user = response.json()
-    print(f"Authenticated as: {user['login']}")
-    print(f"Name: {user.get('name', 'Not set')}")
-    print(f"Public repos: {user['public_repos']}")
-else:
-    print(f"Authentication failed: {response.status_code}")
-    print(f"Response: {response.text}")
-```
-
-**What is happening:** The script follows a pattern you will repeat constantly in API work. First, it loads the token from the environment and fails fast with a helpful message if the token is missing (Lesson 31). Then it constructs the `Authorization` header using the Bearer pattern. The `Accept` header tells GitHub which response format version to use — this is a GitHub-specific convention, but many APIs have similar versioning headers. After making the request, it checks the status code before attempting to parse the response as JSON. The `.get('name', 'Not set')` call (Lesson 11) provides a safe fallback because the `name` field is optional on GitHub profiles.
-
-**Expected output** (with a valid token):
+Expected output, with no token set:
 
 ```
-Authenticated as: your-username
-Name: Your Name
-Public repos: 12
+DOCS_API_TOKEN is not set.
 ```
 
-## Quick Reference
-
-```python
-# Send a POST request with a JSON body
-response = requests.post("https://httpbin.org/post", json={"key": "value"})
-
-# Send a PUT request with a JSON body
-response = requests.put("https://httpbin.org/put", json={"key": "new_value"})
-
-# Send a DELETE request
-response = requests.delete("https://httpbin.org/delete")
-
-# Attach custom headers to any request
-headers = {"Accept": "application/json", "X-Custom": "value"}
-response = requests.get("https://httpbin.org/headers", headers=headers)
-
-# Authenticate with an API key in a custom header
-headers = {"X-API-Key": os.getenv("MY_API_KEY")}
-response = requests.get("https://api.example.com/data", headers=headers)
-
-# Authenticate with a Bearer token
-headers = {"Authorization": f"Bearer {os.getenv('API_TOKEN')}"}
-response = requests.get("https://api.example.com/user", headers=headers)
-
-# Authenticate with basic auth using the auth= parameter
-response = requests.get("https://httpbin.org/basic-auth/user/pass", auth=("user", "pass"))
-
-# Combine POST body, custom headers, and Bearer auth in one call
-headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-response = requests.post("https://api.example.com/items", json=payload, headers=headers)
-
-# Check for HTTP errors and raise an exception if the request failed
-response.raise_for_status()
-```
-
-## Exercise
-
-Write a script called `api_methods.py` that demonstrates POST, PUT, and DELETE requests with authentication. The script must do the following:
-
-1. Load a token from an environment variable called `API_TOKEN`. If the variable is not set, print an error message and exit. For this exercise, the token value can be any non-empty string — httpbin.org does not validate tokens, but your script must still load it from the environment and include it in headers.
-    
-2. Define a function called `make_request` that accepts three parameters: `method` (a string — `"POST"`, `"PUT"`, or `"DELETE"`), `url` (a string), and `data` (a dictionary, with a default value of `None`). The function must:
-    
-    - Build an `Authorization` header using the Bearer token pattern with the token loaded in step 1.
-    - Also include an `Accept: application/json` header.
-    - If `method` is `"POST"`, call `requests.post()` with the `json=` parameter set to `data`.
-    - If `method` is `"PUT"`, call `requests.put()` with the `json=` parameter set to `data`.
-    - If `method` is `"DELETE"`, call `requests.delete()` (no body).
-    - If `method` is anything else, print `Unknown method: <method>` and return `None`.
-    - Return the response object.
-3. Use `make_request` to perform the following three calls, in order:
-    
-    - POST to `https://httpbin.org/post` with the body `{"action": "create", "item": "issue", "title": "Fix login bug"}`
-    - PUT to `https://httpbin.org/put` with the body `{"action": "update", "item": "issue", "title": "Fix login bug (updated)"}`
-    - DELETE to `https://httpbin.org/delete` with no body
-4. After each call, print a summary in the following exact format (one summary per call, no blank lines between them):
-    
+With the token set, `--dry-run`:
 
 ```
---- POST https://httpbin.org/post ---
-Status: 200
-Auth header sent: Bearer <your token value here>
-Body sent: {"action": "create", "item": "issue", "title": "Fix login bug"}
---- PUT https://httpbin.org/put ---
-Status: 200
-Auth header sent: Bearer <your token value here>
-Body sent: {"action": "update", "item": "issue", "title": "Fix login bug (updated)"}
---- DELETE https://httpbin.org/delete ---
-Status: 200
-Auth header sent: Bearer <your token value here>
-Body sent: None
+DRY RUN POST   /issues
+DRY RUN POST   /issues
+DRY RUN PATCH  /issues/2
+DRY RUN DELETE /issues/99
+DRY RUN DELETE /issues/1
+5 planned, 0 sent
 ```
 
-> [!tip] To get the `Auth header sent` and `Body sent` values, parse the httpbin response JSON. httpbin echoes back the headers it received in `response.json()["headers"]` and the parsed JSON body in `response.json()["json"]`. For DELETE (which sends no body), `response.json()["json"]` will be `None`.
-
-Run the script by setting the environment variable inline:
-
-```bash
-API_TOKEN="my-test-token-123" python3 api_methods.py
-```
-
-**Expected output** (with `API_TOKEN="my-test-token-123"`):
+And the real run, against a freshly restarted server:
 
 ```
---- POST https://httpbin.org/post ---
-Status: 200
-Auth header sent: Bearer my-test-token-123
-Body sent: {"action": "create", "item": "issue", "title": "Fix login bug"}
---- PUT https://httpbin.org/put ---
-Status: 200
-Auth header sent: Bearer my-test-token-123
-Body sent: {"action": "update", "item": "issue", "title": "Fix login bug (updated)"}
---- DELETE https://httpbin.org/delete ---
-Status: 200
-Auth header sent: Bearer my-test-token-123
-Body sent: None
+POST   /issues     201  #3 index.md 404s [docs, bug]
+POST   /issues     201  #4 notes.txt has stale paths []
+PATCH  /issues/2   200  #2 rate-limit.md missing example (closed)
+DELETE /issues/99  404  no issue 99
+DELETE /issues/1   204  deleted
+4 sent, 1 failed
 ```
 
----
-
-## Audit
-
-|Requirement|Introduced in|
-|---|---|
-|`import requests`|Lesson 37|
-|`import os`|Lesson 31|
-|`import sys`|Lesson 29|
-|`import json` (for `json.dumps`)|Lesson 28|
-|`os.getenv()`|Lesson 31|
-|`sys.exit()`|Lesson 29|
-|`requests.post()`, `requests.put()`, `requests.delete()`|Lesson 38 (this lesson)|
-|`json=` parameter|Lesson 38 (this lesson)|
-|`headers=` parameter|Lesson 38 (this lesson)|
-|Bearer token in `Authorization` header|Lesson 38 (this lesson)|
-|`response.status_code`|Lesson 37|
-|`response.json()`|Lesson 37|
-|Dictionary access with `[]`|Lesson 11|
-|`def` with parameters and default values|Lessons 15–16|
-|`if/elif/else`|Lesson 10|
-|`return`|Lesson 15|
-|f-strings|Lesson 6|
-|`print()`|Lesson 1|
-|`json.dumps()` for formatting dict as string|Lesson 28|
-|String comparison (`method == "POST"`)|Lesson 10|
-
-All operations required by the exercise are covered in this lesson or in prior lessons. No future-lesson material is required.
+The field content must match; the column widths are yours to choose. Confirm the result with `curl -s http://127.0.0.1:8077/issues` — issue 1 should be gone, issue 2 closed, and issues 3 and 4 created.
