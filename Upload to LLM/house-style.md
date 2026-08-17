@@ -16,7 +16,7 @@ Assumed vocabulary, never defined: *raises*, *returns*, *argument*, *string*, *l
 
 **Caveats follow the usage they qualify.** Do not front-load a section with conditions and exceptions before the reader knows what is being qualified.
 
-**Put each failure where the reader meets it.** Name what goes wrong at the point that teaches the call it applies to, usually as a callout. Do not reserve a slot for warnings at the top. A failure belongs in the opening **only** when it governs the whole artifact — when a reader could hit it from any section, so no single section owns it. When in doubt it goes in the section. Never state the same failure in both places.
+**Put each failure where the reader meets it.** Name what goes wrong at the point that teaches the call it applies to, usually as a callout. Do not reserve a slot for warnings at the top. Failures belong in their individual sections.
 
 ## Examples and fixtures
 
@@ -58,7 +58,9 @@ Rules:
 
 **There is no limit on code blocks.** Demonstration code in the body is necessary, and it is especially necessary for showing how sibling functions differ. Put two related calls side by side in one block with the difference commented rather than describing it in prose.
 
-**Fence labels.** Unlabeled fences are for program output only; code fences carry a language. Labels in use: bare (output), `python`, `bash`, `text` (tracebacks and config files whose contents would otherwise read as code), plus `toml`, `yaml`, `json`, `markdown` where they apply.
+**Two code blocks cannot be put directly in sequence.** Putting code blocks one directly after another one, with no intervening text, reduces clarity. The user doesn't understand why there are multiple code blocks, instead of just one, larger one. A code block always requires introductory text explaining what its purpose is. Instead of putting multiple code blocks directly in sequence, put text in between them introducing each code block (including output code blocks), in turn. 
+
+**Fence labels.** Code fences carry a language, except in output blocks. Labels in use: `output`, `python`, `bash`, `text` (tracebacks and config files whose contents would otherwise read as code), plus `toml`, `yaml`, `json`, `markdown` where they apply.
 
 **Callouts are for genuine danger, or for material that would break the flow of the surrounding text.** The vast majority of explanation belongs integrated into the body. There is no fixed limit on how many an artifact may have; there is a standard each one must meet.
 
