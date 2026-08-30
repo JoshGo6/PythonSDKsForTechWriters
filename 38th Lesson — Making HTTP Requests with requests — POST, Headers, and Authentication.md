@@ -458,27 +458,27 @@ The second delete returns `404` with a JSON error body, and no exception is rais
 
 ## Lookup table
 
-| Use when | Call | Result |
-| --- | --- | --- |
-| Create a record | `requests.post(url, json=payload, headers=headers)` | `201`; response holds the record plus the number the server assigned |
-| Replace a whole record | `requests.put(url, json=payload, headers=headers)` | `200`; every field not in `payload` is gone from the record |
-| Change some fields | `requests.patch(url, json=payload, headers=headers)` | `200`; `payload` is merged in, other fields survive |
-| Remove a record | `requests.delete(url, headers=headers)` | `204` with an empty body; the record is gone |
-| Remove a record twice | `requests.delete(url, headers=headers)` | `404` with a JSON error body; no exception, server unchanged |
-| Send a JSON body | `json=payload` | Body `b'{"title": "Docs typo"}'`, `Content-Type: application/json` |
-| Send an HTML-form body | `data=payload` | Body `title=Docs+typo`, `Content-Type: application/x-www-form-urlencoded` |
-| Pass both by mistake | `requests.post(url, json=a, data=b)` | `data` wins; the JSON is dropped and nothing warns |
-| Send an API key | `headers={"X-API-Key": token}` | Header sent verbatim: `docs-token-123` |
-| Send a Bearer token | `headers={"Authorization": f"Bearer {token}"}` | Header sent as `Bearer docs-token-123` |
-| Send a username and password | `auth=("docs-bot", token)` | Header built for you: `Basic ZG9jcy1ib3Q6ZG9jcy10b2tlbi0xMjM=`, decodable by anyone |
-| Check what you actually sent | `response.request.body`, `response.request.headers` | The serialized body and the full header dict of the outgoing request |
-| Read a token, tolerating absence | `os.getenv("DOCS_API_TOKEN")` | The value, or `None` when unset — which reaches the server as `Bearer None` and gets a `401` |
-| Read a token, failing loudly | `os.environ["DOCS_API_TOKEN"]` | The value, or raises `KeyError` before any request is sent |
-| Unset a header on purpose | `headers={"Authorization": None}` | The header is omitted from the request entirely; the server sees no credentials |
-| Parse a body that is not there | `response.json()` on a `204` | Raises `requests.exceptions.JSONDecodeError`: `Expecting value: line 1 column 1 (char 0)` |
-| Detect a rejected write | `response.status_code` | The only signal; `401`, `403`, `404`, and `500` all return normally |
+| Use when                         | Call                                                 | Result                                                                                       |
+| -------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Create a record                  | `requests.post(url, json=payload, headers=headers)`  | `201`; response holds the record plus the number the server assigned                         |
+| Replace a whole record           | `requests.put(url, json=payload, headers=headers)`   | `200`; every field not in `payload` is gone from the record                                  |
+| Change some fields               | `requests.patch(url, json=payload, headers=headers)` | `200`; `payload` is merged in, other fields survive                                          |
+| Remove a record                  | `requests.delete(url, headers=headers)`              | `204` with an empty body; the record is gone                                                 |
+| Remove a record twice            | `requests.delete(url, headers=headers)`              | `404` with a JSON error body; no exception, server unchanged                                 |
+| Send a JSON body                 | `json=payload`                                       | Body `b'{"title": "Docs typo"}'`, `Content-Type: application/json`                           |
+| Send an HTML-form body           | `data=payload`                                       | Body `title=Docs+typo`, `Content-Type: application/x-www-form-urlencoded`                    |
+| Pass both by mistake             | `requests.post(url, json=a, data=b)`                 | `data` wins; the JSON is dropped and nothing warns                                           |
+| Send an API key                  | `headers={"X-API-Key": token}`                       | Header sent verbatim: `docs-token-123`                                                       |
+| Send a Bearer token              | `headers={"Authorization": f"Bearer {token}"}`       | Header sent as `Bearer docs-token-123`                                                       |
+| Send a username and password     | `auth=("docs-bot", token)`                           | Header built for you: `Basic ZG9jcy1ib3Q6ZG9jcy10b2tlbi0xMjM=`, decodable by anyone          |
+| Check what you actually sent     | `response.request.body`, `response.request.headers`  | The serialized body and the full header dict of the outgoing request                         |
+| Read a token, tolerating absence | `os.getenv("DOCS_API_TOKEN")`                        | The value, or `None` when unset — which reaches the server as `Bearer None` and gets a `401` |
+| Read a token, failing loudly     | `os.environ["DOCS_API_TOKEN"]`                       | The value, or raises `KeyError` before any request is sent                                   |
+| Unset a header on purpose        | `headers={"Authorization": None}`                    | The header is omitted from the request entirely; the server sees no credentials              |
+| Parse a body that is not there   | `response.json()` on a `204`                         | Raises `requests.exceptions.JSONDecodeError`: `Expecting value: line 1 column 1 (char 0)`    |
+| Detect a rejected write          | `response.status_code`                               | The only signal; `401`, `403`, `404`, and `500` all return normally                          |
 
-## Exercise — apply a plan file of issue changes
+## Exercise #1 — apply a plan file of issue changes
 
 Write `sync_issues.py`, a script that reads a file describing changes to make and sends each one to the API.
 
@@ -553,3 +553,116 @@ DELETE /issues/1   204  deleted
 ```
 
 The field content must match; the column widths are yours to choose. Confirm the result with `curl -s http://127.0.0.1:8077/issues` — issue 1 should be gone, issue 2 closed, and issues 3 and 4 created.
+
+## Exercise 2 — Sync a customer plan against the Zenmeter API
+
+Lesson 38's `sync_issues.py` sent `POST`, `PUT`, `PATCH`, and `DELETE` at a stand-in API on your own machine. This exercise sends three of those four at a real one: your Zenmeter tenant. There's no local server to start — `BASE` points straight at Zenmeter, and every write actually happens.
+
+Two things are different from the lesson's local API, and both come straight from the [Zenmeter Management API reference](https://api.nalpeiron.io/docs/zenmeter.html):
+
+- Every request needs **two** credentials in `headers`, not one: your access token as a Bearer `Authorization` header, and your tenant ID as an `N-TenantId` header. Both are required on every call, not just the writes.
+- Zenmeter has no `DELETE` operations at all. Removal is modeled as a lifecycle change — a customer is _disabled_, not deleted — so this exercise doesn't need `requests.delete()`. Worth remembering for when you go on to document this API: "delete" isn't a verb it uses.
+
+## Setup — pointing the script at your tenant
+
+Set `BASE` at the top of your script to your tenant's actual API host. The docs page lives at `api.nalpeiron.io/docs/`, but a docs site and the host that actually answers API calls aren't always the same machine — confirm the real one in the NGP administration site before assuming it matches the docs URL.
+
+Export your credentials rather than writing them into the script:
+
+```bash
+export ZENMETER_ACCESS_TOKEN=<your access token>
+export ZENMETER_TENANT_ID=<your tenant id>
+```
+
+> [!warning] This exercise writes to your real tenant There's no fixture to reset between runs. Point every entry in the plan file at test customers you're comfortable creating, updating, and disabling, and re-check IDs before you re-run — running the same `create` entry twice makes two customers, not one.
+
+## The plan file
+
+Save this as `customer-plan.json`. It has one entry of each kind this exercise covers:
+
+```json
+[
+  {
+    "action": "create",
+    "name": "Fenwick Robotics",
+    "type": "prospect",
+    "accountRefId": "fenwick-2026",
+    "subscriptionSku": "REPLACE-WITH-YOUR-SKU"
+  },
+  {
+    "action": "create",
+    "name": "Corvid Labs",
+    "type": "customer",
+    "accountRefId": "corvid-2019"
+  },
+  {
+    "action": "update_contract",
+    "customerId": "cust_REPLACE_WITH_A_REAL_TEST_CUSTOMER_ID",
+    "contractValue": 250000,
+    "contractRenewalDate": "2027-03-01T00:00:00Z"
+  },
+  {
+    "action": "disable",
+    "customerId": "cust_REPLACE_WITH_ANOTHER_REAL_TEST_CUSTOMER_ID"
+  }
+]
+```
+
+Before a real (non-dry-run) attempt, replace the placeholder strings: `GET /api/v1/customers` on your tenant will give you real customer IDs to update or disable, and the product catalog endpoints (`GET /api/v1/zenmeter/products` and the business-model endpoints under it) will give you a real SKU to subscribe the new customer to. Dry runs don't need any of that — the placeholders above are fine as they are.
+
+## Requirements
+
+Write `zenmeter_sync.py`.
+
+1. Take the plan file's path as a positional argument, and support a `--dry-run` flag.
+2. Read `ZENMETER_ACCESS_TOKEN` and `ZENMETER_TENANT_ID` from the environment. Check the token first. If it is unset or empty, print `ZENMETER_ACCESS_TOKEN is not set.` and send nothing at all. If the token is present but the tenant ID is unset or empty, print `ZENMETER_TENANT_ID is not set.` and likewise send nothing.
+3. Send both credentials on every request: the token as a Bearer `Authorization` header, the tenant ID as an `N-TenantId` header.
+4. Read and parse the plan file.
+5. A `create` entry has a `name` and, optionally, `type`, `accountRefId`, and `subscriptionSku`. Create the customer first. Only if that succeeds, and only if the entry carries a `subscriptionSku`, create a subscription for the new customer using it. If the customer create fails, don't attempt the subscription create.
+6. An `update_contract` entry names a `customerId` and carries the fields to change — treat every key other than `action` and `customerId` as a field to update. Zenmeter's customer-update endpoint replaces the whole record, so any field you don't explicitly carry forward must still hold whatever it held before the update. Check the OAD for what the customer record returns on a read versus what it accepts on a write — they're not the same shape.
+7. A `disable` entry names a `customerId` and disables that customer.
+8. Print one line per API request actually made — not one per plan entry; a `create` entry with a `subscriptionSku` makes two. Each line needs the method, the path, the status code, and a detail:
+    - Customer create: the new customer's id and name.
+    - Subscription create: the new subscription's id and the SKU you requested.
+    - Update: the field or fields you changed, and the values you sent.
+    - Disable: the word `disabled`.
+    - Anything that comes back `400` or higher: the error message the API sent.
+9. A failed request must not stop the run or prevent later entries from being attempted.
+10. An entry counts as sent only if every request it made succeeded. If any request within an entry fails, the whole entry counts as failed.
+11. Finish with a count of entries sent and entries failed.
+12. `--dry-run` prints the method and path of every request the plan _would_ make, sends none of them, and finishes with a count of requests planned.
+
+## Expected output
+
+Two pieces below are real, captured output — I ran a solution locally against the plan file above. Neither needs your tenant: the missing-credential checks exit before any request goes out, and `--dry-run` never sends one.
+
+With no token set:
+
+```
+ZENMETER_ACCESS_TOKEN is not set.
+```
+
+With `--dry-run`, using the plan file exactly as shown above:
+
+```
+DRY RUN POST   /api/v1/customers
+DRY RUN POST   /api/v1/zenmeter/subscriptions
+DRY RUN POST   /api/v1/customers
+DRY RUN GET    /api/v1/customers/cust_REPLACE_WITH_A_REAL_TEST_CUSTOMER_ID
+DRY RUN PUT    /api/v1/customers/cust_REPLACE_WITH_A_REAL_TEST_CUSTOMER_ID
+DRY RUN PATCH  /api/v1/customers/cust_REPLACE_WITH_ANOTHER_REAL_TEST_CUSTOMER_ID/disable
+6 planned, 0 sent
+```
+
+> [!note] The live run isn't verified I have no network access from this environment and no credentials to your tenant, so I can't run this exercise's actual writes the way the lesson's exercises are normally run and captured. Everything past this point is the _shape_ your output will have, with placeholders standing in for real values — not literal text to diff against, since your customer IDs, subscription IDs, and statuses will be whatever your tenant actually returns:
+> 
+> ```
+> POST   /api/v1/customers                  201  <new customer id>  Fenwick Robotics
+> POST   /api/v1/zenmeter/subscriptions     201  <new subscription id>  <sku>
+> POST   /api/v1/customers                  201  <new customer id>  Corvid Labs
+> PUT    /api/v1/customers/<id>              204  contractValue=250000, contractRenewalDate=2027-03-01T00:00:00Z
+> PATCH  /api/v1/customers/<id>/disable      204  disabled
+> 4 sent, 0 failed
+> ```
+> 
+> If you'd like a second set of eyes once you've run it against your tenant, paste back what you got and I'll sanity-check it against the requirements above.

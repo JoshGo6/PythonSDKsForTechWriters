@@ -73,13 +73,15 @@ Each generated lesson must contain the following elements, in the order they're 
     - Should reinforce a diverse set of skills from previous lessons, instead of just skills from one previous lesson. Additionally, should require skills from the previous five lessons, if doing so would not make the exercise be awkward. If this would result in the exercise being awkward, use skills from a subset of the previous five lessons so that the exercise won't be awkward.
     - **Hard rule:** An exercise **MUST NOT** require _any_ Python operation, syntax, library, or tool that has not been taught in the current lesson or in earlier lessons. If a helpful technique exists but is "coming later," the exercise must not depend on it. In other words, exercises require the use of the current lesson and previous lessons, not future lessons.
     - **Hard rule:** Every exercise must require the learner to write and run code that produces output testable at the command line. An exercise that involves only passive reading or providing a written answer is not sufficient.
-    - Should present the desired output so Josh can verify that he got the correct answer. That output must be copied from a real run of your own solution, never composed by hand.
+    - Should present the desired output so Josh can verify that he got the correct answer. That output must be copied from a real run of your own solution, never composed by hand. When the exercise calls an API you cannot reach, **Verification specific to lessons** below says what a real run means there.
 
 ## Verification specific to lessons
 
 The general verification standard is in the house style. Two checks belong only to lessons:
 
 **Solve the exercise yourself.** Write a complete working solution and run it. This is what proves the exercise is possible with only the material taught so far, and it is the only reliable source for the expected output you show the learner. Do not include your solution in the lesson.
+
+When the exercise calls an API you cannot reach, solve it against a local fixture built from that API's own specification and run it there. The expected output still comes from a real run of your own solution and is still never composed. Say which parts of it belong to his tenant rather than to the shape: identifiers, timestamps, and counts will differ on his machine, field names and the line format will not.
 
 **Check dependencies across the whole lesson.** Create an audit of every Python operation, syntax pattern, library, built-in function, and language construct the lesson uses, and verify each was introduced in the current lesson or a prior roadmap entry. If any depends on a future lesson — even a loop, a conditional, an import, a `class`, or a decorator — decide, using the roadmap, whether to rewrite the code to remove the dependency or to extend the lesson to cover it. Do this against the syntax index if one is present in the uploaded reference set; otherwise against the roadmap.
 
@@ -98,7 +100,42 @@ Never let an unavoidable dependency reach the exercise. The exercise hard rule a
 
 All of this is done silently. Nothing about the audit is printed with the lesson — but the marking itself is part of the lesson text and always ships.
 
+## Lessons that call Josh's Zenmeter tenant
+
+From Lesson 35 onward, the HTTP lessons make real calls against the Zenmeter Management API in a test tenant Josh controls, rather than against a local `ThreadingHTTPServer`. He wants to make his mistakes against a real API instead of a simulation. Every endpoint in that tenant is safe to write to: it is non-production, and breaking things in it is the point.
+
+**You cannot reach it.** Outbound network is blocked from this container, so you can execute nothing against the tenant. That does not lower the verification standard, it changes where each claim comes from — read the unreachable-system clause in the house style before writing one of these lessons. It is the rule; this section only adds the Zenmeter specifics.
+
+### What Josh supplies, and what he must not
+
+He supplies the base URL, the token endpoint, and his tenant ID. **Never ask for the client secret, and never put a real token or secret into a lesson**, including one he has pasted into the conversation — a pasted token is a live credential until it expires.
+
+| Setting         | Value                                                                                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------------ |
+| Base URL        | `https://joshua-goldstein.api.nalpeiron.io`                                                                  |
+| Path prefix     | `/api/v1` — every documented path begins with it                                                             |
+| Token endpoint  | `https://joshua-goldstein.keycloak.nalpeiron.io/realms/joshua-goldstein/protocol/openid-connect/token`        |
+| Auth            | OAuth2 `client_credentials`, form-encoded, against Keycloak                                                   |
+| Required header | `N-TenantId`, on every API request, in addition to `Authorization`                                            |
+| Specification   | `https://api.nalpeiron.io/docs/zenmeter.html` — fetchable, and the authority for every shape you cannot run   |
+
+Teach him to export `NALPEIRON_BASE_URL`, `NALPEIRON_TOKEN_URL`, `NALPEIRON_TENANT_ID`, `NALPEIRON_CLIENT_ID`, and `NALPEIRON_CLIENT_SECRET`, and read them with the patterns from Lesson 31.
+
+### Facts about this API that change how a lesson is written
+
+Read the specification for anything else. These are the ones worth having before you start, because each one contradicts an assumption carried over from GitHub:
+
+- **`N-TenantId` is required and is separate from authentication.** Omitting it fails a request that is otherwise correctly authorized. That is a failure worth teaching rather than designing around.
+- **`PUT` and `PATCH` answer `204` with an empty body.** Calling `.json()` on that raises `requests.exceptions.JSONDecodeError` — the trap Lesson 38 already teaches, except that here it is the normal case rather than an edge one.
+- **Pagination is by page number, not `Link` headers.** `pageNumber` and `pageSize` go in; `{"items": […], "pageSize": …, "pageNumber": …, "elementsTotal": …}` comes back.
+- **There is no `DELETE` anywhere in the API.** Records are switched off and on with `PATCH …/disable` and `PATCH …/enable`. Lesson 38's `requests.delete()` therefore has no live target here: teach the method against the echo server and say plainly that this API does not use it.
+- **The documented error codes are `400`, `401`, `402`, `403`, `404`, `409`, `422`, `429`, and the `5xx` family**, with an error body of `details`, `error`, `errorCode`, and `validationErrors`. `402` means the request was valid but could not be completed, which is unusual enough to be worth a sentence.
+- **`429` is documented; rate-limit headers are not.** The specification names the status and nothing else, so no lesson may claim `X-RateLimit-*` exists here. If rate-limit behavior needs teaching, ask Josh to paste the headers from a real response first.
+- **Customers are the safest playground** — create, list, get, update, disable, enable is a complete lifecycle that touches neither subscriptions nor metering.
+
 ## Lessons 47-58 — PyGithub cannot be reached from this container
+
+The Zenmeter change above does not reach this section. Zenmeter is a REST API with no Python SDK, so it cannot teach what these lessons exist to teach; they stay on PyGithub against a local server. Do not convert them.
 
 Outbound network is blocked and PyGithub is not installed, so nothing in the PyGithub lessons can be executed unless Josh supplies the package. Do not generate lessons 47-58 with invented output.
 
@@ -308,23 +345,23 @@ Teach `mdformat` as a command-line tool and Python package for enforcing consist
 
 #### Lesson 35: HTTP essentials for SDK users
 
-Teach request/response, endpoints, methods, status codes, headers, and JSON bodies at a practical level. Show how this maps onto "SDK method calls that perform requests under the hood." Exercises write small Python scripts that parse sample HTTP response data (provided as strings or dicts) and print what a script should do next based on the status code and body.
+Teach request/response, endpoints, methods, status codes, headers, and JSON bodies at a practical level. Show how this maps onto "SDK method calls that perform requests under the hood." Exercises write small Python scripts that parse sample HTTP response data (provided as strings or dicts, using response shapes and status codes taken from the Zenmeter specification rather than invented ones) and print what a script should do next based on the status code and body.
 
 #### Lesson 36: curl vs SDK calls — reading raw API behavior
 
-Teach `curl` patterns for GET requests, auth headers, and basic pagination hints. Compare a raw REST call to the SDK abstraction and show what information is preserved vs hidden. Exercises write Python scripts that parse provided curl JSON output (as strings) and print doc-style explanations of the API behavior.
+Teach `curl` patterns against Josh's Zenmeter tenant: the form-encoded `POST` to the token endpoint that exchanges a client ID and secret for an access token, a `GET` carrying both `Authorization: Bearer` and `N-TenantId`, and the `pageNumber`/`pageSize` query parameters. Compare a raw REST call to the SDK abstraction and show what information is preserved vs hidden. Exercises write Python scripts that parse saved curl JSON output (as strings) and print doc-style explanations of the API behavior — the shell does the calling in this lesson, Python only reads what came back.
 
 #### Lesson 37: Making HTTP requests with `requests` — GET and response basics
 
-Teach installing and using the `requests` library for GET requests. Cover `requests.get()`, the `Response` object (`.status_code`, `.text`, `.json()`, `.headers`), and query parameters via `params=`. Connect this to the curl patterns from Lesson 35 — "here's what curl was doing under the hood." Exercises make real GET requests to a public API (like httpbin.org or a public GitHub endpoint), inspect the response, and extract fields using JSON/dict skills already learned.
+Teach installing and using the `requests` library for GET requests. Cover `requests.get()`, the `Response` object (`.status_code`, `.text`, `.json()`, `.headers`), and query parameters via `params=`. Connect this to the curl patterns from Lesson 35 — "here's what curl was doing under the hood." Exercises make real GET requests to the Zenmeter tenant — the customer list is the safest target — inspect the response, and extract fields from the `items` array using JSON/dict skills already learned. Getting the access token is not this lesson's subject: give him a token-fetching function to paste, and teach it properly in Lesson 38.
 
 #### Lesson 38: Making HTTP requests with `requests` — POST, headers, and authentication
 
-Teach `requests.post()`, `requests.put()`, `requests.patch()`, and `requests.delete()`. Cover sending JSON bodies (`json=`), custom headers (`headers=`), and authentication patterns: API keys in headers, Bearer tokens, and basic auth. Show `PUT` and `PATCH` adjacent against the same record, since sending a partial `PUT` destroys the omitted fields and still returns a success status. Emphasize loading tokens from environment variables (Lesson 31). Exercises send authenticated requests to a test API, handle the responses, and print doc-friendly summaries of what the API returned.
+Teach `requests.post()`, `requests.put()`, `requests.patch()`, and `requests.delete()`. Cover sending JSON bodies (`json=`), custom headers (`headers=`), and authentication patterns: API keys in headers, Bearer tokens, and basic auth. Show `PUT` and `PATCH` adjacent against the same record, since sending a partial `PUT` destroys the omitted fields and still returns a success status. Teach the OAuth2 client-credentials exchange itself here: the token endpoint takes a form-encoded body rather than JSON, and the token it returns goes on every later request. Emphasize loading the client ID, secret, and tenant ID from environment variables (Lesson 31). Exercises create and then update a customer in the Zenmeter tenant, handle the `204` that comes back from an update, and print doc-friendly summaries of what the API returned. `requests.delete()` is taught against the echo server, because this API has no `DELETE` endpoints.
 
 #### Lesson 39: API response handling and debugging
 
-Teach systematic response handling: checking status codes before parsing, raising exceptions on failures (`response.raise_for_status()`), logging request/response details for debugging, and handling common HTTP errors (400, 401, 403, 404, 500). Show how to build a reusable "make a request and handle errors" function. Exercises implement a robust API-calling script that logs its behavior and handles errors gracefully.
+Teach systematic response handling: checking status codes before parsing, raising exceptions on failures (`response.raise_for_status()`), logging request/response details for debugging, and handling the errors this API actually documents (`400`, `401`, `402`, `403`, `404`, `409`, `422`, `429`, and the `5xx` family) and reading the reason out of the `error` and `validationErrors` fields of the error body. Show how to build a reusable "make a request and handle errors" function. Exercises implement a robust API-calling script that logs its behavior and handles errors gracefully.
 
 ---
 

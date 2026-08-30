@@ -104,6 +104,16 @@ Nothing ships unverified. Do all of this **before** presenting any part of the a
 
 **Source every polarity claim.** A polarity claim is any statement about what a default is, or about whether omitting something enables or disables it: "the default is X," "omitting this implies Y," "passing this limits the set." These are the errors that read fluently and are exactly backwards, and inference from how an API *seems* like it should behave is how they happen. Confirm each one by running it or by reading the project's own documentation — never from recall. Where confusion is likely, state the claim against its inverse ("this is not a filter, it is the switch"), which forces the commitment into the open where a reader can catch it.
 
+**When the system cannot be reached, the standard does not relax — the source changes.** Some material targets a live API this container cannot reach. Nothing there is written from recall either. Split the claim in two before deciding how to verify it:
+
+- **Python behavior is always executable.** What `requests` does with a response, what `.json()` returns on an empty body, what a header lookup raises when the header is absent, what a cached value does once it goes stale — these are claims about Python, and they run locally against a fixture. Run them.
+- **Remote behavior is sourced, never inferred.** Which fields a response carries, which status codes an endpoint returns, what a parameter is named, what an enum admits, which headers come back — take these from the API's own OpenAPI description, or from a real response body the user has pasted with its secrets removed. Both are documents you read, which is the authority the polarity rule already accepts.
+
+Then build the fixture from what you sourced, so the local server returns the documented shape. That is what makes a page both unexecutable against the real API and fully verified: every Python claim on it has been run, and every remote claim traces to the spec.
+
+**Never present as executed:** a response body you assembled yourself, a status code the spec does not document, a field name appearing in neither the spec nor a pasted response, a header the spec does not document, or error text from the remote service. Where a page needs one of these and no source exists, leave it out and say so at delivery.
+
 **A set's `repr` order is not stable between runs.** Never paste a set literal as fixed output; wrap it in `sorted()`.
 
 **Verify silently.** Do not print a verification report — Josh does not read it, and the work is the point, not the account of it. The one thing that does get said out loud is a genuine gap: if something could not be run at all, say so plainly at delivery and name which claims are therefore unverified. Do not present unverified output as though it were tested, and do not hedge material you did verify.
+
