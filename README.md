@@ -17,11 +17,37 @@ A typical use case addressed by this course is a situation where a Markdown docu
 
 ## Instructions for use
 
-Upload to your LLM all the files in [Upload to LLM](./Upload%20to%20LLM/). These files contain the motivation for the course, a description of its 63 lessons (as of this writing), course constraints, output format specifications, and a syntax validator. Each lesson culminates in a coding exercise. Along with the files, provide a prompt like, "Generate lesson 42." The files contain all of the information your LLM needs to generate the lesson.
+This course ships as a pair of [Claude Code](https://claude.com/claude-code) skills under [`.claude/skills`](./.claude/skills/), rather than as files you upload by hand.
+
+> [!note]
+> **Prerequisite:** you need [Claude Code](https://claude.com/claude-code) installed and set up.
+
+**Installing the skills**
+
+This bundle installs two skills:
+
+- `python-sdk-lesson` — the curriculum contract: the 63-lesson roadmap, the required structure for each lesson, and the verification rules specific to a lesson.
+- `doc-house-style` — the shared writing contract (`references/house-style.md`) and the lesson validator (`scripts/check_lesson.py`) that `python-sdk-lesson` depends on. Both skills must be installed together.
+
+To use them with this repo, clone it, then do one of the following:
+
+- Run Claude Code from the repo root. It picks up `.claude/skills` automatically as project-scoped skills, or
+- Copy both folders under `.claude/skills` into `~/.claude/skills` to make them available in any project.
+
+**Generating a lesson**
+
+Once the skills are installed, open Claude Code and give it a prompt such as this one:
+
+```text
+Generate lesson 12
+```
+
+Claude Code reads the roadmap stub for that lesson number, writes it to house style, and verifies it before showing it to you — no other files need to be attached.
 
 > [!caution]
-> LLMs, like human, are fallible. It's quite common to find errors in LLM output, and I've found errors in the generated lessons, including in the exercises. If you wish to clone this repo, it is upon you to verify that the material produced is accurate.
+> LLMs, like humans, are fallible. It's quite common to find errors in LLM output, and errors have shown up in generated lessons, including in the exercises. If you clone this repo, it is on you to verify that the material produced is accurate.
 
 ## Personal progress
 
-As of August 16, 2026, I am up to lesson 38, [Making HTTP Requests with requests — POST, Headers, and Authentication](./38th%20Lesson%20—%20Making%20HTTP%20Requests%20with%20requests%20—%20POST,%20Headers,%20and%20Authentication.md).
+As of September 7, 2026, I am up to lesson 39, [Handling and Debugging API Responses](./39th%20Lesson%20—%20Handling%20and%20Debugging%20API%20Responses.md).
+
