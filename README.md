@@ -19,9 +19,9 @@ A typical use case addressed by this course is a situation where a Markdown docu
 
 This course ships as a pair of [Claude Code](https://claude.com/claude-code) skills under [`skills/`](./skills/), rather than as files you upload by hand.
 
-**Prerequisite:**
+**Prerequisite**
 
-You need [Claude Code](https://claude.com/claude-code) installed and set up.
+- [Claude Code](https://claude.com/claude-code) installed and set up.
 
 **Installing the skills**
 
