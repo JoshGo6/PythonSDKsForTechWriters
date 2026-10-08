@@ -17,7 +17,7 @@ A typical use case addressed by this course is a situation where a Markdown docu
 
 ## Instructions for use
 
-This course ships as a pair of [Claude Code](https://claude.com/claude-code) skills under [`.claude/skills`](./.claude/skills/), rather than as files you upload by hand.
+This course ships as a pair of [Claude Code](https://claude.com/claude-code) skills under [`skills/`](./skills/), rather than as files you upload by hand.
 
 > [!note]
 > **Prerequisite:** you need [Claude Code](https://claude.com/claude-code) installed and set up.
@@ -29,10 +29,18 @@ This bundle installs two skills:
 - `python-sdk-lesson` — the curriculum contract: the 63-lesson roadmap, the required structure for each lesson, and the verification rules specific to a lesson.
 - `doc-house-style` — the shared writing contract (`references/house-style.md`) and the lesson validator (`scripts/check_lesson.py`) that `python-sdk-lesson` depends on. Both skills must be installed together.
 
-To use them with this repo, clone it, then do one of the following:
+The bundle here is a fixed snapshot rather than a copy that tracks my own working version, which has since moved on. It generates complete, verified lessons on its own, so the lessons you produce will differ in small ways from the later ones in this repo, which were written against a newer contract.
 
-- Run Claude Code from the repo root. It picks up `.claude/skills` automatically as project-scoped skills, or
-- Copy both folders under `.claude/skills` into `~/.claude/skills` to make them available in any project.
+To install them, clone this repo and copy both folders into your own skills directory:
+
+```bash
+cp -r skills/python-sdk-lesson skills/doc-house-style ~/.claude/skills/
+```
+
+That makes them available in every project rather than only in this one. Claude Code reads `~/.claude/skills` on startup, so restart it afterward.
+
+> [!note]
+> The folders deliberately sit under `skills/` rather than `.claude/skills/`, so that cloning this repo never silently overrides a newer copy of these skills you may already have installed.
 
 **Generating a lesson**
 
@@ -42,12 +50,9 @@ Once the skills are installed, open Claude Code and give it a prompt such as thi
 Generate lesson 12
 ```
 
-Claude Code reads the roadmap stub for that lesson number, writes it to house style, and verifies it before showing it to you — no other files need to be attached.
-
 > [!caution]
 > LLMs, like humans, are fallible. It's quite common to find errors in LLM output, and errors have shown up in generated lessons, including in the exercises. If you clone this repo, it is on you to verify that the material produced is accurate.
 
 ## Personal progress
 
-As of September 7, 2026, I am up to lesson 39, [Handling and Debugging API Responses](./39th%20Lesson%20—%20Handling%20and%20Debugging%20API%20Responses.md).
-
+As of October 7, 2026, I am up to lesson 39, [Handling and Debugging API Responses](./39th%20Lesson%20—%20Handling%20and%20Debugging%20API%20Responses.md).
