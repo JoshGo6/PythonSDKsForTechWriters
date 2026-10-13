@@ -1,520 +1,370 @@
-# Lesson 38b: Read objects and raise your own errors
+# Lesson 38b — Reading objects and raising errors
 
-Lesson 39 opens with two lines that look like they fight each other:
+Lesson 38 had you write `response.status_code` and `response.json()` without ever saying what the dot does, or why one of those needs parentheses and the other doesn't. This lesson settles both. You'll learn to read an object from the outside, tell an attribute from a method on sight, work out from a method's kind whether its line needs an `=`, and raise an error of your own as a second way out of a function. Then you'll meet `response.raise_for_status()`, which is all of that at once and which Lesson 39 builds on.
 
-```python
-response = requests.request(method, url, headers=HEADERS, timeout=10)
-response.raise_for_status()
-```
-
-The second line looks like it overwrites the first. It does not. Nothing on that line binds a name, nothing changes `response`, and the line can stop your script dead without ever producing a value. This lesson explains why, because two pieces of Python that Lesson 39 assumes have never actually been taught: what a dot does, and what `raise` does.
-
-It sits between Lessons 38 and 39 and introduces nothing else. Lessons 44 through 47 teach how objects are *built* — `class`, `__init__`, `self`, inheritance. You need none of that here. You only need to read objects other people built, which is what every SDK asks of you.
+Classes stay out. Writing your own object is Lesson 43, and nothing here asks you to define one, only to use objects that already exist.
 
 ## The samples
 
-Two samples run through the whole lesson. The first is the `issues` list you have used since Lesson 11, where the second issue is deliberately missing `user` and `labels`.
+Two samples cover every example, because one can't show both an object with data on it and an API that fails.
+
+The following commands build the small docs tree the first two examples read, which has a nested directory so a path has a parent worth looking at:
+
+```bash
+mkdir -p docs/api
+printf '# Authentication\n\nSend the token in the Authorization header.\n' > docs/api/auth.md
+printf '# Rate limits\n\nSixty requests per hour without a token.\n' > docs/api/rate-limit.md
+printf '# Documentation\n\n- [Authentication](api/auth.md)\n' > docs/index.md
+```
+
+The following list is the second sample, and the second record is deliberately missing its `user` field so that every example about raising has something real to reject:
 
 ```python
-issues = [
-    {"number": 41, "title": "Document the rate limit", "user": "kmp", "labels": ["docs"]},
-    {"number": 42, "title": "Fix the auth example"},
+ISSUES = [
+    {"number": 41, "title": "Broken link in install.md", "user": "kmp", "labels": ["docs"]},
+    {"number": 42, "title": "Clarify rate-limit.md"},
 ]
 ```
 
-The second is the live GitHub REST API, which answers without a token. One URL exists and one does not, so every example can show both the success and the failure.
+The following imports and two URLs are assumed by every example below, so they aren't repeated in each block:
 
 ```python
-GOOD = "https://api.github.com/repos/python/cpython"
-BAD = "https://api.github.com/repos/python/no-such-repository-here"
+import requests
+from pathlib import Path
+
+GOOD = "https://api.github.com/repos/PyGithub/PyGithub"
+GONE = "https://api.github.com/repos/PyGithub/no-such-repo-xyz"
 ```
 
-> [!note] Unauthenticated GitHub allows 60 requests an hour
-> Every request in this lesson is anonymous, so you share a per-IP budget of 60 an hour. Nothing here comes close, but if you loop over these URLs while experimenting you will start seeing `403` instead of `200`.
+`GOOD` is a repository that exists and `GONE` is one that doesn't, so the same two lines of code can show a success and a failure. Both are public, so neither needs a token, and every request in this lesson is a `GET` that changes nothing.
 
 ## Terminology and theory
 
-Three words carry this lesson: object, method, and raise. The first two are about reading; the third is about control flow.
+An **object** is one value that carries both data and the functions that work on that data. A string is an object, a list is an object, and so is the `Response` that `requests.get()` handed you in Lesson 37. You've been using objects since Lesson 2 without the word.
 
-### An object carries data and functions together
+The **dot** reaches into one particular object. In `page.name`, the `page` on the left names which object, and the `name` on the right names what you want from it. That matters because the same name means different things on different objects: `page.name` on a path is a filename, and the `name` on some other object would be something else entirely. The dot isn't a general lookup; it asks this one object.
 
-An **object** is one value that holds data *and* the functions that work on it, bundled into a single thing you can pass around. `response` is one object. Inside it are the status code, the headers, the raw body — and also `json`, `raise_for_status`, and a dozen other functions that came attached.
+What follows the dot is either an attribute or a method, and the parentheses are how you tell them apart in code. An **attribute** is a piece of data sitting on the object, read with no parentheses, as in `response.status_code`. A **method** is a function belonging to the object, called with parentheses, as in `response.json()`. Getting it backwards fails in two different ways: parentheses on an attribute try to call a value that isn't a function, and a method without parentheses hands you the function itself instead of running it.
 
-The dot is how you reach inside. `response.status_code` means "the `status_code` that belongs to this particular response." Not to responses in general — to this one.
+The second of those two mistakes is the dangerous one, because it isn't an error. Python lets you mention a method without calling it, so the line runs, nothing happens, and the script carries on as though the method had done its job. That's the whole reason this lesson exists ahead of Lesson 39.
 
-You have been using objects since Lesson 4 without the word. `"Rate Limit"` is a string object, and `.lower()` is one of the functions attached to it. `[1, 2, 3]` is a list object, and `.append()` is one of the functions attached to it. Nothing new is happening in `response.json()`; it is the same shape you already read.
+Once a method is actually called, the question is whether its line needs an `=`, and the answer follows from which of three kinds of method it is. One kind **builds a new value** and hands it back, leaving the object alone, so the result is lost unless you assign it. One kind **changes the object in place** and hands back `None`, so assigning its result throws away the thing you wanted. One kind **checks something and raises** when it finds a problem, handing back `None` when it doesn't, so there's nothing to assign either way. Reading a method's kind off the documentation is how you know what its line should look like.
 
-### An attribute is data, a method is an action
+**Raising** is the second way out of a function. A `return` hands a value back to whoever called it, and the caller carries on with that value. A `raise` abandons the function without producing a value at all, and hands an exception to Python instead. The two are alternatives rather than companions: a line after a `raise` in the same branch never runs.
 
-An **attribute** is data stored on the object. You read it and no code runs: `response.status_code` is the number `200` sitting there.
+A raised exception doesn't stop at the function that raised it. It climbs out through every function in the chain that called it, and the first `except` clause matching its type catches it. Nothing in between has to mention it, which is what makes raising useful: a function three levels down can refuse to continue, and only the top level needs to decide what to do about that.
 
-A **method** is a function stored on the object. You call it with parentheses and code runs: `response.json()` parses the body and hands back a dict.
+The curriculum's motivating case is `response.raise_for_status()`, a checking method on the response object. It inspects the status code you already hold, raises `requests.exceptions.HTTPError` when that code is a `4xx` or `5xx`, and returns `None` otherwise. The response doesn't vanish when it raises: it's attached to the exception as `exc.response`, so everything Lesson 37 taught you about reading a response still applies inside the `except` clause.
 
-The parentheses are the entire difference, and they are not optional decoration. `response.json` without them does not parse anything — it hands you the function itself, unrun.
+## Read the syntax
 
-### Raising is the other way out of a function
+The parentheses are the whole difference between reading data and running code, and both wrong forms are worth seeing beside the right ones.
 
-A function can end in exactly two ways.
-
-**`return`** hands a value back to whoever called it, and the caller carries on with that value in hand. This is the ending you know.
-
-**`raise`** hands nothing back. It abandons the function mid-line and throws an exception object *upward* — to the caller, and to the caller's caller, and onward — until something catches it. If nothing does, Python gives up and prints the traceback.
-
-You have only ever been on the catching side. `try`/`except` from Lesson 19 is the catcher's mitt. `raise` is the throw, and until now nothing in this curriculum has shown you how to make one. Every exception you have caught — `ValueError`, `KeyError`, `FileNotFoundError` — was thrown by a `raise` statement inside somebody else's function.
-
-## Syntax
-
-The first three sections below are about the dot, and answer the question "what did that line change?" The last three are about `raise`, and answer "where did control go?"
-
-### Look for the `=` to see what a line changes
-
-The `=` is the only thing in Python that rebinds a name. A line without one cannot make `response` mean something different, however many dots it has.
-
-That is not the same as saying the line does nothing. Compare a method that changes a list against an assignment that replaces it, watched through a second name pointing at the same list — the two-names-one-list situation from Lesson 2.
+The following block pairs each correct form with the mistake it invites:
 
 ```python
-numbers = [1, 2, 3]
-same_list = numbers          # two names, one list
-
-numbers.append(4)            # no =, and the list itself changes
-print("after .append(4)  — same_list:", same_list, "| numbers:", numbers)
-
-numbers = numbers + [5]      # an =, so this is a NEW list bound to the old name
-print("after = numbers+[5] — same_list:", same_list, "| numbers:", numbers)
+page.name          # attribute: hands you the filename
+page.name()        # a string cannot be called, so this is an error
+page.exists()      # method: runs the check and hands back True or False
+page.exists        # hands back the function itself, unrun, and raises nothing
 ```
 
-After the `append`, both names show the change because there is still only one list. After the assignment, they disagree, because `numbers` now points at something else entirely.
+The third and fourth lines are the pair to remember. Only one character separates them, and the fourth is legal Python that does nothing, so no traceback tells you about it.
 
-```text
-after .append(4)  — same_list: [1, 2, 3, 4] | numbers: [1, 2, 3, 4]
-after = numbers+[5] — same_list: [1, 2, 3, 4] | numbers: [1, 2, 3, 4, 5]
-```
+Which of the three kinds a method is decides whether its line carries an `=`.
 
-Now the opposite case. `.lower()` builds a new string and hands it back; it cannot change the original, because strings are immutable (Lesson 5). Call it without an `=` and the result is thrown on the floor.
+The following table is the rule, and every row is run further down:
+
+| Kind of method | Hands back | Line looks like |
+| --- | --- | --- |
+| Builds a new value | the new value | `renamed = page.with_suffix(".txt")` |
+| Changes the object in place | `None` | `labels.append("bug")` |
+| Checks, and raises on a problem | `None` | `response.raise_for_status()` |
+
+Assigning the result of the second kind is the trap, because the line looks ordinary and the damage is silent. `labels = labels.append("bug")` appends the label and then replaces your list with the `None` that `append` handed back, so the list you wanted is gone and no error is raised.
+
+Raising takes one keyword and an exception you name yourself.
+
+The following two functions differ only in how they refuse, and the difference is what the caller has to write:
 
 ```python
-title = "Rate Limit"
-
-title.lower()                # the new string is created and immediately discarded
-print("after the bare call:", title)
-
-title = title.lower()        # the = is what keeps it
-print("after the assignment:", title)
-```
-
-The first call is a real Python statement that really ran, and it accomplished nothing.
-
-```text
-after the bare call: Rate Limit
-after the assignment: rate limit
-```
-/
-### Expect one of three things from a method call
-
-Those two blocks show two different behaviors, and there is a third. Every method call you meet does one of these, and knowing which tells you immediately whether the line needs an `=`.
-
-| The method                                     | Needs an `=`                          | Example                            |
-| ---------------------------------------------- | ------------------------------------- | ---------------------------------- |
-| Builds a new value and returns it              | Yes, or the value is lost             | `title.lower()`, `response.json()` |
-| Changes the object in place and returns `None` | No, and adding one destroys your data | `numbers.append(4)`                |
-| Checks something and raises when it is wrong   | No, and there is nothing to assign    | `response.raise_for_status()`      |
-
-`response.raise_for_status()` is the third kind. It looks at the status code, and either it raises `requests.exceptions.HTTPError` or it does nothing at all. On success it returns `None` — literally nothing worth keeping, which is exactly why the line has no `=` on it.
-
-Here is that claim run against both URLs. Notice what the successful call returns.
-
-```python
-import requests
-
-GOOD = "https://api.github.com/repos/python/cpython"
-BAD = "https://api.github.com/repos/python/no-such-repository-here"
-
-good = requests.get(GOOD, timeout=10)
-print("good status :", good.status_code)
-print("returns     :", good.raise_for_status())
-print("after it, the script is still running")
-
-bad = requests.get(BAD, timeout=10)
-print("bad status  :", bad.status_code)
-bad.raise_for_status()
-print("this line never runs")
-```
-
-The `200` produces `None` and execution continues. The `404` produces no value at all, because control leaves the script at that line.
-
-```text
-good status : 200
-returns     : None
-after it, the script is still running
-bad status  : 404
-Traceback (most recent call last):
-  File "/tmp/lesson38b/check.py", line 13, in <module>
-    bad.raise_for_status()
-  File "/usr/lib/python3/dist-packages/requests/models.py", line 1021, in raise_for_status
-    raise HTTPError(http_error_msg, response=self)
-requests.exceptions.HTTPError: 404 Client Error: Not Found for url: https://api.github.com/repos/python/no-such-repository-here
-```
-
-Read the middle frame of that traceback. It points into `requests`'s own source at a line that says `raise HTTPError(...)`. `raise_for_status` is an ordinary function with an ordinary `raise` statement inside it, and the traceback is showing you the exact line.
-
-### Add the parentheses or nothing happens
-
-An attribute is read without parentheses and a method is called with them, and swapping the two produces two different failures.
-
-```python
-import requests
-
-response = requests.get("https://api.github.com/repos/python/cpython", timeout=10)
-
-print("attribute, no parens:", response.status_code)
-print("method, with parens :", response.json()["full_name"])
-print("method, no parens   :", response.json)
-```
-
-The third line is the one to look at. Python is perfectly happy to hand you a function you did not call, and it prints as a `bound method` — bound meaning it is attached to this response and remembers which one.
-
-```text
-attribute, no parens: 200
-method, with parens : python/cpython
-method, no parens   : <bound method Response.json of <Response [200]>>
-```
-
-Calling an attribute fails loudly, because a number is not a function.
-
-```python
-response.status_code()
-```
-
-The message names the type it tried to call, which is usually enough to spot the stray parentheses.
-
-```text
-TypeError: 'int' object is not callable
-```
-
-> [!warning] A check you forget to call is a check that never runs
-> `response.raise_for_status` without parentheses is not a syntax error and produces no warning. Python evaluates the method, discards it, and moves on. Your error handling is silently gone.
-
-The failure is invisible, which is what makes it worth showing. Below, a genuine `404` sails straight past.
-
-```python
-import requests
-
-response = requests.get("https://api.github.com/repos/python/no-such-repository-here",
-                        timeout=10)
-response.raise_for_status
-print("nothing raised, and the script carried on:", response.status_code)
-```
-
-Nothing raised, nothing printed a warning, and the script reported the failure as though it were fine.
-
-```text
-nothing raised, and the script carried on: 404
-```
-
-### Return hands a value back, raise abandons the call
-
-Now write a `raise` yourself. The syntax is the keyword, an exception type, and a message: `raise ValueError("what went wrong")`.
-
-Issue 42 in the samples has no `user`. Nothing about it is illegal Python — it is a perfectly good dict that happens to be unusable for your purpose — so reading it raises nothing on its own. Here are the two ways a function can respond to that, side by side against the same data.
-
-```python
-issues = [
-    {"number": 41, "title": "Document the rate limit", "user": "kmp", "labels": ["docs"]},
-    {"number": 42, "title": "Fix the auth example"},
-]
-
-
-def user_or_none(issue):
-    """Hand back the user, or None when the issue has no user."""
+def summarize_or_none(issue):
     if "user" not in issue:
-        return None
+        return None                     # caller must remember to test for None
     return issue["user"]
 
 
-def user_or_raise(issue):
-    """Hand back the user. Refuse to return at all when the issue has no user."""
+def summarize_or_raise(issue):
     if "user" not in issue:
-        raise ValueError(f"issue #{issue['number']} has no user")
+        raise KeyError(f"issue {issue['number']} has no user")
     return issue["user"]
-
-
-print("returned:", user_or_none(issues[1]))
-print("still running")
-print("raised  :", user_or_raise(issues[1]))
-print("this line never runs")
 ```
 
-The first call comes back with `None` and the script continues. The second never comes back at all, so the `print()` wrapped around it never gets a value to print.
+Pick the exception type that describes the problem rather than always reaching for one: `ValueError` for a value that's the right type and unusable, `KeyError` for a missing key, `TypeError` for the wrong kind of thing entirely. The check above is for a missing key, so `summarize_or_raise` raises `KeyError`. Put the specific detail in the message, because the message is what you'll read in six months, and `issue 42 has no user` tells you which record while `missing field` doesn't.
 
-```text
-returned: None
-still running
-Traceback (most recent call last):
-  File "/tmp/lesson38b/issues.py", line 23, in <module>
-    print("raised  :", user_or_raise(issues[1]))
-                       ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/tmp/lesson38b/issues.py", line 17, in user_or_raise
-    raise ValueError(f"issue #{issue['number']} has no user")
-ValueError: issue #42 has no user
-```
+Catching a raised exception uses the `try` and `except` from Lesson 19, with the exception's full name.
 
-Pick the exception type that describes the problem: `ValueError` for content you cannot use, `TypeError` for the wrong kind of thing, `FileNotFoundError` for a missing path. A caller then catches yours the same way they catch the library's.
-
-### Watch a raised exception climb until something catches it
-
-A `raise` does not stop at the function that made it. It climbs through every caller in turn, and the first `except` clause that matches the type wins. Put a middle function between the raise and the loop, one that catches nothing.
+The following block is the shape every example at the end of this lesson takes:
 
 ```python
-def line_for(issue):
-    """Nothing here catches anything. The exception passes straight through."""
-    return f"#{issue['number']} {issue['title']} ({user_or_raise(issue)})"
-
-
-for issue in issues:
-    print(line_for(issue))
+try:
+    response.raise_for_status()
+except requests.exceptions.HTTPError as exc:
+    print(exc.response.status_code)     # the response is still here, on exc
 ```
 
-Issue 41 formats fine. Issue 42 raises `ValueError` two calls deep, and because nothing catches it, the traceback records the whole climb — bottom frame is where it was raised, top frame is the loop it escaped to.
+The `as exc` part binds the exception to a name so you can read it, and `exc.response` is the response object the check rejected. The name `requests.exceptions.HTTPError` gets written out in full because it lives in the `requests.exceptions` module rather than being a built-in like `ValueError`.
 
-```text
-#41 Document the rate limit (kmp)
-Traceback (most recent call last):
-  File "/tmp/lesson38b/report.py", line 19, in <module>
-    print(line_for(issue))
-          ^^^^^^^^^^^^^^^
-  File "/tmp/lesson38b/report.py", line 15, in line_for
-    return f"#{issue['number']} {issue['title']} ({user_or_raise(issue)})"
-                                                   ^^^^^^^^^^^^^^^^^^^^
-  File "/tmp/lesson38b/report.py", line 9, in user_or_raise
-    raise ValueError(f"issue #{issue['number']} has no user")
-ValueError: issue #42 has no user
-```
+## Work through the examples
 
-Wrap the loop body in the `try`/`except` you already know and the climb stops there instead. `line_for` is unchanged; it still does not catch anything.
+Each example adds one thing to the one before it, starting from a path on disk and ending with a failed API call read through its exception. Every output block is from a real run.
+
+### Example 1: Tell an attribute from a method by what the parentheses do
+
+This first example establishes the base case, which is that the dot gives you either data or a function, and the parentheses decide which you get.
+
+The following script reads three attributes, calls one method, and then makes both parenthesis mistakes:
 
 ```python
-for issue in issues:
+page = Path("docs/api/auth.md")
+
+print("name     :", page.name)            # an attribute: no parentheses
+print("suffix   :", page.suffix)
+print("parent   :", page.parent.name)     # two attributes, one after the other
+print("exists   :", page.exists())        # a method: parentheses required
+print("unrun    :", page.exists)          # no parentheses, so nothing ran
+try:
+    page.name()
+except TypeError as exc:
+    print("name()   :", exc)
+```
+
+The following output shows the fifth line printing a function rather than running one, which is the failure with no traceback:
+
+```output
+name     : auth.md
+suffix   : .md
+parent   : api
+exists   : True
+unrun    : <bound method Path.exists of PosixPath('docs/api/auth.md')>
+name()   : 'str' object is not callable
+```
+
+Compare the `exists` line with the `exists()` line above it. The call produced `True`, and the mention produced `<bound method …>`, which is Python telling you it handed back the function. *Bound* means attached to this one path, which is the dot doing its job: `page.exists` is a check against `docs/api/auth.md` and nothing else. The last line is the opposite mistake, and it does raise, because `page.name` is a string and a string can't be called.
+
+### Example 2: Work out from a method's kind where the `=` goes
+
+This example adds the three kinds of method call, so you can predict from a method's behavior whether its line should assign anything.
+
+The following script uses one method of each kind, and then assigns the result of the one you shouldn't:
+
+```python
+page = Path("docs/api/auth.md")
+labels = ["docs"]
+
+renamed = page.with_suffix(".txt")        # builds a new value, so it needs the =
+print("builds   :", renamed.name, "| original untouched:", page.name)
+
+print("returns  :", labels.append("bug")) # changes labels in place, returns None
+print("labels   :", labels)
+
+lost = labels.append("api")               # the = captures the None, not the list
+print("lost     :", lost, "| labels still changed:", labels)
+```
+
+The following output shows the building method leaving the original alone, and the in-place method handing back nothing at all:
+
+```output
+builds   : auth.txt | original untouched: auth.md
+returns  : None
+labels   : ['docs', 'bug']
+lost     : None | labels still changed: ['docs', 'bug', 'api']
+```
+
+The `with_suffix()` call produced a second path and left `page` as it was, which is why dropping the `=` would lose the result. The `append()` call is the mirror image: it printed `None`, because changing the list is all it does, and the list itself changed anyway. The last line is the trap in action, and note what it costs you: `lost` is `None`, and had the name on the left been `labels` instead, the list would have been replaced by `None` while the append still happened.
+
+### Example 3: Raise an error that names the record it rejected
+
+This example adds `raise`, and uses it where returning `None` would have forced the caller to check.
+
+The following script defines a function that refuses incomplete records and loops over both samples:
+
+```python
+def summarize(issue):
+    if "user" not in issue:
+        raise KeyError(f"issue {issue['number']} has no user")
+    return f"#{issue['number']} {issue['title']} ({issue['user']})"
+
+
+for issue in ISSUES:
     try:
-        print(line_for(issue))
-    except ValueError as exc:
+        print(summarize(issue))
+    except KeyError as exc:
         print("skipped:", exc)
 ```
 
-The `as exc` binds the exception object that was raised, and printing it prints the message you wrote into it. This is the payoff of raising rather than returning `None`: the bad record announces itself by number instead of vanishing.
+The following output shows the complete record summarized and the incomplete one reported by number:
 
-```text
-#41 Document the rate limit (kmp)
-skipped: issue #42 has no user
+```output
+#41 Broken link in install.md (kmp)
+skipped: 'issue 42 has no user'
 ```
 
-### Read `response.raise_for_status()` as a check that can raise
+The `return` on the function's last line never runs for issue 42, because the `raise` above it left the function first. That's the contrast worth holding on to: `return` and `raise` are two exits from the same function, and whichever is reached first ends it. The message carries the issue number, so the caller's report says which record failed without the caller having to work it out.
 
-Everything in Lesson 39 now reads. `raise_for_status` is a method attached to the response, it checks the status code, and it raises `requests.exceptions.HTTPError` when the code is a refusal.
+The quotes around the message aren't in the string you passed to `KeyError`: printing a `KeyError` wraps its message in quotes, where printing a `ValueError` with the same message shows it bare. That's how `KeyError` displays itself, so expect the quotes whenever you print one, and don't take them for a mistake in your message.
 
-Written with only what you have met — as a plain function taking the response as a parameter — it is about this long.
+### Example 4: Watch a raised exception climb past the function that called it
+
+This example adds a second level of calls, to show that nothing in between needs to know an exception is passing through. Example 3's `summarize` is still in scope, and only the two definitions below are new.
+
+The following script wraps `summarize` in a function with no `except` of its own:
 
 ```python
-import requests
+def report(issue):
+    return f"[{summarize(issue)}]"        # no except here, so the raise passes through
 
 
-def my_raise_for_status(response):
-    """The same check, written with only what you have already met."""
-    if response.status_code >= 400:
-        raise requests.exceptions.HTTPError(
-            f"{response.status_code} {response.reason} for url: {response.url}")
-    return None
-
-
-bad = requests.get(BAD, timeout=10)
-print("my version returns:", my_raise_for_status(requests.get(GOOD, timeout=10)))
-my_raise_for_status(bad)
+try:
+    for issue in ISSUES:
+        print(report(issue))
+except KeyError as exc:
+    print("caught two levels up:", exc)
 ```
 
-It behaves the way the real one did — `None` on the `200`, an `HTTPError` on the `404`.
+The following output shows the exception crossing `report` untouched and stopping at the only `except` in the chain:
 
-```text
-my version returns: None
-Traceback (most recent call last):
-  File "/tmp/lesson38b/mine.py", line 17, in <module>
-    my_raise_for_status(bad)
-  File "/tmp/lesson38b/mine.py", line 10, in my_raise_for_status
-    raise requests.exceptions.HTTPError(
-requests.exceptions.HTTPError: 404 Not Found for url: https://api.github.com/repos/python/no-such-repository-here
+```output
+[#41 Broken link in install.md (kmp)]
+caught two levels up: 'issue 42 has no user'
 ```
 
-The real one differs in two ways that do not change the idea. It is attached to the response rather than taking it as a parameter, so its source says `self` where mine says `response` — Lesson 44 covers that keyword and you do not need it yet. And it separates `4xx` from `5xx` so the message can say `Client Error` or `Server Error`, where mine prints the reason phrase alone.
+`report` doesn't mention `KeyError` anywhere, and it didn't have to. The `raise` in `summarize` abandoned `summarize`, then abandoned `report`, then found the `except` at the top. Note also that the loop stopped: issue 42 raised, the `except` ran, and no further record was reported, because the exception left the `for` loop along with everything else. That's the difference between catching inside the loop, as Example 3 did, and catching outside it.
 
-## Worked examples
+### Example 5: Turn a failing status into an exception with `raise_for_status()`
 
-Three examples, each one a pattern you will reuse. The first two raise from your own code; the third catches one raised by `requests`.
+This example adds the checking kind of method, against a real API, so you can see it do nothing on success and raise on failure.
 
-### Example 1: name the record in every message you raise
-
-The message is the part that matters. `raise ValueError("bad data")` inside a loop over 400 records tells you nothing about which record, and you will be reading that message at the worst possible moment.
+The following script runs the identical two lines against a repository that exists and one that doesn't:
 
 ```python
-issues = [
-    {"number": 41, "title": "Document the rate limit", "user": "kmp", "labels": ["docs"]},
-    {"number": 42, "title": "Fix the auth example"},
-]
-
-
-def field(issue, name):
-    """Return one field, or raise a message that identifies the record."""
-    if name not in issue:
-        raise ValueError(f"issue #{issue['number']} has no {name}")
-    return issue[name]
-
-
-for issue in issues:
-    for name in ("title", "user", "labels"):
-        try:
-            print(f"#{issue['number']} {name}: {field(issue, name)}")
-        except ValueError as exc:
-            print("  missing:", exc)
+for url in (GOOD, GONE):
+    response = requests.get(url, timeout=10)
+    print("status   :", response.status_code)
+    print("returns  :", response.raise_for_status())   # None on success, exception on failure
 ```
 
-Two fields are missing from issue 42, and each reports itself by number and by field name.
+The following output is everything the script printed, and the second iteration stops one line earlier than the first:
 
-```text
-#41 title: Document the rate limit
-#41 user: kmp
-#41 labels: ['docs']
-#42 title: Fix the auth example
-  missing: issue #42 has no user
-  missing: issue #42 has no labels
+```output
+status   : 200
+returns  : None
+status   : 404
 ```
 
-### Example 2: choose between raising and returning None
+The following is the last line of the traceback that ended the script, with the frames above it left out:
 
-Both endings are legitimate, and the choice is about who is responsible for noticing. Return `None` when the absence is ordinary and the caller will obviously check for it. Raise when carrying on would produce a wrong answer quietly.
+```output
+requests.exceptions.HTTPError: 404 Client Error: Not Found for url: https://api.github.com/repos/PyGithub/no-such-repo-xyz
+```
 
-Here is the quiet wrong answer, which is the failure mode that costs you an afternoon.
+On the successful request the method printed `None`, which is what the checking kind hands back when it finds nothing wrong, and that's why its line carries no `=`. On the `404` it raised, and since nothing caught the exception the traceback ends the script. Note that the request itself succeeded both times: a `404` is a response that arrived, exactly as Lesson 38 showed, and `raise_for_status()` is you choosing to treat it as an error.
+
+### Example 6: Catch the exception, and see the check that never ran
+
+This last example adds the `except` clause that reads the response back off the exception, and shows what the same check does when you forget its parentheses.
+
+The following script mentions the method once without calling it, then calls it properly inside a `try`:
 
 ```python
-def user_or_none(issue):
-    if "user" not in issue:
-        return None
-    return issue["user"]
+response = requests.get(GONE, timeout=10)
+response.raise_for_status                       # no parentheses, so no check happens
+print("still running, nothing was checked")
 
-
-owners = []
-for issue in issues:
-    owners.append(user_or_none(issue))
-
-print("owners:", owners)
-print("count of owned issues:", len(owners))
+try:
+    response.raise_for_status()
+except requests.exceptions.HTTPError as exc:
+    print("code     :", exc.response.status_code)
+    print("message  :", exc.response.json()["message"])
+    print("url      :", exc.response.url)
 ```
 
-The count is wrong and nothing anywhere said so. `None` went into the list as though it were a username.
+The following output shows the second line passing silently, and then the real check raising into a clause that reads the failed response:
 
-```text
-owners: ['kmp', None]
-count of owned issues: 2
+```output
+still running, nothing was checked
+code     : 404
+message  : Not Found
+url      : https://api.github.com/repos/PyGithub/no-such-repo-xyz
 ```
 
-Raising instead forces the caller to decide what to do, at the moment the bad record is read rather than five steps downstream.
+The second line of that script is the bug this lesson was inserted to prevent. It names a method, Python evaluates the name, the result is discarded, and the script continues as though the status had been checked. There's no traceback and no warning, and the `404` goes unnoticed until something downstream fails on data that was never there. The `except` clause shows the other half: `exc.response` is the same response object, so `status_code`, `json()`, and `url` all work on it, and the failure is as readable inside the clause as it was outside.
 
-```python
-owners = []
-for issue in issues:
-    try:
-        owners.append(user_or_raise(issue))
-    except ValueError as exc:
-        print("excluded:", exc)
-
-print("owners:", owners)
-print("count of owned issues:", len(owners))
-```
-
-The bad record is named, excluded, and the count is right.
-
-```text
-excluded: issue #42 has no user
-owners: ['kmp']
-count of owned issues: 1
-```
-
-### Example 3: catch the exception and read the response off it
-
-`raise_for_status()` raises `requests.exceptions.HTTPError`, and it attaches the response to the exception before throwing it. Catching the exception therefore does not cost you the reply — `exc.response` is the same `Response` object you would have had.
-
-```python
-import requests
-
-for url in (GOOD, BAD):
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        print("OK  ", response.json()["full_name"])
-    except requests.exceptions.HTTPError as exc:
-        print("FAIL", exc.response.status_code, exc.response.reason)
-        print("     body:", exc.response.json()["message"])
-```
-
-The successful URL never enters the handler. The failing one does, and the handler still reaches the status, the reason phrase, and GitHub's own explanation in the body.
-
-```text
-OK   python/cpython
-FAIL 404 Not Found
-     body: Not Found
-```
-
-> [!note] `exc.response` is `None` when nothing ever replied
-> A `404` is a reply, so there is a response to attach. A connection refused or a timeout is not a reply, and those exceptions carry `exc.response` as `None`. Lesson 39 handles that case; here, every exception you catch is an `HTTPError` and always has one.
+> [!warning] The check that isn't a syntax error
+> `response.raise_for_status` on a line by itself is valid Python that checks nothing. Nothing in the language, and nothing in `requests`, will tell you about it. When a script seems to ignore a failing status, look at whether the check was called.
 
 ## Lookup table
 
+The following table covers everything this lesson introduces, with every result taken from a real run against the local tree or `api.github.com`:
+
 | Use when | Call | Result |
 | --- | --- | --- |
-| Read data stored on an object | `response.status_code` | `200` — no code runs, no parentheses |
-| Run a function stored on an object | `response.json()` | `{'id': 81598961, 'node_id': …, 'name': 'cpython', 'full_name': 'python/cpython', …}` — the parsed body |
-| See what a method is without running it | `response.json` | `<bound method Response.json of <Response [200]>>` |
-| Call something that is not a function | `response.status_code()` | raises `TypeError`: `'int' object is not callable` |
-| Change a list without rebinding its name | `numbers.append(4)` | returns `None`; the list itself now ends in `4` |
-| Keep the result of a method that builds a new value | `title = title.lower()` | `'rate limit'`; without the `=` the new string is discarded |
-| Stop a function and report unusable data | `raise ValueError(f"issue #{n} has no user")` | raises `ValueError`; the function never returns |
-| Stop the script on an HTTP refusal | `response.raise_for_status()` | `None` on `2xx`; raises `requests.exceptions.HTTPError` on `4xx` and `5xx` |
-| Forget the parentheses on that check | `response.raise_for_status` | returns the method, unrun — the check silently never happens |
-| Catch a refusal raised by `requests` | `except requests.exceptions.HTTPError as exc:` | binds the exception; `str(exc)` is `404 Client Error: Not Found for url: …` |
-| Reach the reply from inside the handler | `exc.response.status_code` | `404` — the same `Response` the call produced |
-| Read the API's own error text after catching | `exc.response.json()` | `{'message': 'Not Found', 'documentation_url': …, 'status': '404'}` — GitHub's error body |
+| You want data that sits on an object | `page.name` | `'auth.md'`, with no parentheses anywhere |
+| You put parentheses on an attribute | `page.name()` | Raises `TypeError: 'str' object is not callable` |
+| You want to reach through one object to another | `page.parent.name` | `'api'`, two attribute reads in a row |
+| You want to run a method and use its answer | `page.exists()` | `True` |
+| You name a method and forget the parentheses | `page.exists` | `<bound method Path.exists of PosixPath('docs/api/auth.md')>`, and nothing ran |
+| A method builds a new value from the object | `renamed = page.with_suffix(".txt")` | `renamed.name` is `'auth.txt'`; `page.name` is still `'auth.md'` |
+| A method changes the object in place | `labels.append("bug")` | Returns `None`, and `labels` becomes `['docs', 'bug']` |
+| You assign the result of an in-place method | `lost = labels.append("api")` | `lost` is `None`, and the append happened anyway |
+| You want to refuse a missing key and say why | `raise KeyError(f"issue {n} has no user")` | Abandons the function; `print(exc)` shows `'issue 42 has no user'`, quotes included |
+| You want to catch what you raised | `except KeyError as exc:` | Taken for the raise above, with `exc` bound to it |
+| A raise happens two calls deep | `report()` calling `summarize()` with no `except` | Climbs past `report` to the nearest matching `except` |
+| A raise happens inside a loop you catch outside | `try:` outside the `for` | The loop ends; no later item is processed |
+| You want a bad status to become an exception | `response.raise_for_status()` | `None` on the `200`; raises `requests.exceptions.HTTPError` on the `404` |
+| You name that check and forget the parentheses | `response.raise_for_status` | Nothing is checked, nothing is raised, and the script continues |
+| You want to catch a failing status | `except requests.exceptions.HTTPError as exc:` | Taken for the `404`, with the response on `exc` |
+| You want the failing code as a number | `exc.response.status_code` | `404`, an `int` you can compare |
+| You want the API's explanation of the failure | `exc.response.json()["message"]` | `'Not Found'` |
+| You want the URL that failed | `exc.response.url` | `'https://api.github.com/repos/PyGithub/no-such-repo-xyz'` |
 
-## Exercise: check a repository plan against the GitHub API
+## Exercise: Check a plan file before it reaches the API
 
-Write `check_plan.py`, which reads a plan file of repositories, checks each one against the GitHub REST API, and reports every entry that fails — whether the plan is bad or the API refused.
+Write `check_plan.py`, which reads a file of proposed issue changes, rejects the records that aren't complete enough to send, and confirms that the repository each remaining record names actually exists.
 
-### Save the plan file
-
-Save this as `plan.json` beside your script. The third entry is deliberately incomplete and the second names a repository that does not exist.
+The following is `plan.json`, the input file to create, and between its three records it covers one that's ready, one that's missing a field, and one that names a repository GitHub doesn't have:
 
 ```json
 [
-  {"repo": "python/cpython", "owner": "kmp"},
-  {"repo": "python/no-such-repository-here", "owner": "rivera"},
-  {"repo": "psf/requests"}
+  {"number": 41, "title": "Broken link in install.md", "user": "kmp", "repo": "PyGithub/PyGithub"},
+  {"number": 42, "title": "Clarify rate-limit.md", "repo": "PyGithub/PyGithub"},
+  {"number": 43, "title": "Document the version header", "user": "rivera", "repo": "PyGithub/no-such-repo-xyz"}
 ]
 ```
 
-### Requirements
+Your script must do all of the following:
 
-Your script must do all of the following.
+1. Take the plan file's path as a required positional argument, and explain it under `--help`.
+2. Require `title`, `user`, and `repo` on every record, and refuse a record missing any of them by raising an error that names both the record and the field that's absent. Send no request for such a record.
+3. Ask GitHub about each remaining record's repository, and let a failing status become an exception rather than checking the code yourself.
+4. Handle the two failures in two separate `except` clauses, so an incomplete record and a rejected repository produce different lines of output. For the rejected one, report the status code and the API's own `message`.
+5. Print one line per record, and finish with a count of how many records are ready to send.
 
-1. Load `plan.json` from disk and parse it.
-2. Write a function that returns an entry's `owner`, and raises `ValueError` with a message naming the repository when the entry has no `owner`.
-3. Write a function that takes a `full_name` like `python/cpython`, requests `https://api.github.com/repos/{full_name}`, calls `raise_for_status()`, and returns the parsed body. It must not catch anything.
-4. Loop over the plan. For each entry, print one line: `OK` with the repository's `full_name`, `default_branch`, `language`, and the owner from the plan; or `FAIL` with the reason.
-5. Handle the two failures separately, in two `except` clauses. A plan error must report the message you raised. An HTTP failure must report the status code and reason phrase read off the exception.
-6. Finish with a count of how many succeeded and how many failed.
+Everything you need from the earlier lessons is in the reference set, which is faster to search than the lesson files. The `Lookup` section of [[Exceptions]] has the `try` and `except` forms, [[JSON]] has the file reading, [[Command-line Arguments]] has the positional argument, and [[Making HTTP Requests]] has the request and the response. [[Objects and Methods]] covers the attribute-and-method material from this lesson, and [[Syntax Index]] maps a call to the page that owns it when you know the name but not where it lives.
 
 ### Expected output
 
-Your line format may differ, but the three verdicts and the counts must match.
+The following is from a real run of my own solution, so it shows what a correct script produces rather than what one ought to:
 
-```text
-OK    python/cpython — main, Python, owner kmp
-FAIL  python/no-such-repository-here: 404 Not Found
-FAIL  plan error: psf/requests has no owner in the plan
+```output
+ok        : record 41 targets PyGithub/PyGithub
+incomplete: record 42 has no user
+rejected  : record 43 got 404 Not Found
+1 of 3 records are ready to send
+```
 
-1 checked, 2 failed
+The following command produced it:
+
+```bash
+python3 check_plan.py plan.json
 ```

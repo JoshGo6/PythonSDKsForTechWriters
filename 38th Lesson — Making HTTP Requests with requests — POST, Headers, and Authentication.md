@@ -1,668 +1,450 @@
-# Lesson 38 - Sending Data and Authenticating with requests
+# Lesson 38 — Sending data and authenticating with `requests`
 
-Lesson 37 read data with `requests.get()`. This lesson writes it: creating records, changing them, removing them, and proving to the server that you are allowed to. The four calls are `requests.post()`, `requests.put()`, `requests.patch()`, and `requests.delete()`, and they differ from `get()` in two ways — they carry a body, and they almost always carry credentials.
+Lesson 37 covered the half of `requests` that only reads, which is a `GET` with query parameters and the response object it hands back. This lesson covers the half that writes. You'll send a JSON body with `requests.post()`, replace a record with `requests.put()`, amend one with `requests.patch()`, remove one with `requests.delete()`, set request headers of your own, and attach a credential so GitHub accepts the call instead of refusing it.
 
-## Setup — a local API that accepts writes
+Two things stay out, and both arrive shortly. Turning a failing status code into an exception is Lesson 38b, so every check in this lesson uses an `if` on the response you already hold. Wrapping all of it in one reusable function that handles errors is Lesson 39.
 
-Every example below runs against a small API on your own machine. Save this as `docs_api.py` and leave it running in its own terminal while you work through the lesson.
+## Set up the examples
 
-Save it and run it — you do not need to read it. It is written with `class`, `self`, and inheritance, which Lessons 43-46 cover and this lesson does not use; Python's `http.server` cannot be used any other way. Nothing in the syntax section, the worked examples, or the exercise requires understanding any of it. The endpoint table below is the only part you need.
+The following imports and four constants have already run in every example below, so they aren't repeated in each block:
 
 ```python
-"""A tiny local stand-in for a docs-issue API. Run it in its own terminal.
+import os
+import sys
+import requests
 
-    python3 docs_api.py
+API = "https://api.github.com"
+REPO = f"{API}/repos/PyGithub/PyGithub"
+ISSUES = f"{API}/repos/JoshGo6/ThrowAway/issues"
+STUB = "http://127.0.0.1:8038/records/1"
+```
 
-It listens on http://127.0.0.1:8077.
-"""
-import base64
+Examples 1, 2, 5, and 6 go to real GitHub. Examples 1, 2, and 5 need no credential, so you can run them as they stand; Example 6 writes to your own `JoshGo6/ThrowAway` and needs a token. Examples 3 and 4 go to a small server on your own machine, for a reason worth stating plainly: GitHub has no endpoint that accepts both a `PUT` and a `PATCH` against one record, and no endpoint at all that deletes an issue, so the two behaviors this lesson most needs to show can't be shown against it.
+
+> [!warning] The anonymous rate limit is 60 requests per hour
+> Unauthenticated requests are counted against your IP address rather than an account, and the ceiling is 60 per hour. Running the GitHub examples repeatedly will exhaust it, and GitHub then answers `403` until the hour rolls over.
+
+You don't need to read the next block, and nothing in this lesson asks you to understand it. It's a server that holds one record in memory and answers `GET`, `PUT`, `PATCH`, and `DELETE` for it, written the way Python's standard library wants such a server written: with a `class`, with `self`, and by inheriting from `BaseHTTPRequestHandler`. Classes arrive in Lesson 43, methods and attributes in Lesson 44, and inheritance in Lesson 46, so all three are ahead of you here. There's no way around it, because the standard library offers no non-class way to serve HTTP, and the alternative would be to describe the two behaviors instead of letting you watch them. Treat it as equipment: you start it, you send requests to it, and the syntax section, the worked examples, and the exercise all work without your ever reading a line of it.
+
+The following file is that server, saved as `stub.py`:
+
+```python
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-TOKEN = "docs-token-123"
-USER = "docs-bot"
-
-ISSUES = {
-    1: {"number": 1, "title": "auth.md is out of date", "body": "Rewrite the token section.",
-        "state": "open", "labels": ["docs", "auth"], "user": "jdoe"},
-    2: {"number": 2, "title": "rate-limit.md missing example", "body": "Add a 403 example.",
-        "state": "open", "labels": [], "user": "jdoe"},
+PAGE = {
+    "path": "docs/api/auth.md",
+    "title": "Authentication",
+    "owner": "josh",
+    "state": "published",
 }
-NEXT_NUMBER = 3
+STORE = {"1": dict(PAGE)}
 
 
-# class / self / inheritance: Lessons 43-46. Nothing below is needed for this lesson.
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
-        pass  # keep the server quiet
+        pass  # keep the server quiet so only the example's own output shows
 
-    def send_json(self, status, payload):
-        body = json.dumps(payload).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
+    def reply(self, code, payload=None):
+        body = b"" if payload is None else json.dumps(payload, indent=2).encode()
+        self.send_response(code)
+        if body:
+            self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
-    def read_body(self):
-        length = int(self.headers.get("Content-Length", 0))
-        return self.rfile.read(length).decode("utf-8")
+    def sent_body(self):
+        size = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(size)
+        try:
+            return json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            return None
 
-    def authorized(self):
-        header = self.headers.get("Authorization", "")
-        if header == f"Bearer {TOKEN}":
-            return True
-        if header.startswith("Basic "):
-            decoded = base64.b64decode(header[6:]).decode("utf-8")
-            return decoded == f"{USER}:{TOKEN}"
-        return False
-
-    def deny(self):
-        self.send_json(401, {"error": "bad or missing credentials",
-                             "hint": "send Authorization: Bearer <token>"})
-
-    def issue_number(self):
-        return int(self.path.rsplit("/", 1)[1])
+    def missing(self):
+        self.reply(404, {
+            "message": "Not Found",
+            "documentation_url": "https://example.invalid/docs/records",
+            "status": "404",
+        })
 
     def do_GET(self):
-        if self.path == "/issues":
-            self.send_json(200, list(ISSUES.values()))
-        elif self.path.startswith("/issues/"):
-            n = self.issue_number()
-            if n in ISSUES:
-                self.send_json(200, ISSUES[n])
-            else:
-                self.send_json(404, {"error": f"no issue {n}"})
+        if self.path == "/records/1" and "1" in STORE:
+            self.reply(200, STORE["1"])
         else:
-            self.send_json(404, {"error": "no such endpoint"})
-
-    def do_POST(self):
-        global NEXT_NUMBER
-        raw = self.read_body()
-        if self.path == "/echo":
-            self.send_json(200, {"method": "POST",
-                                 "content_type": self.headers.get("Content-Type"),
-                                 "raw_body": raw})
-            return
-        if not self.authorized():
-            self.deny()
-            return
-        if self.path != "/issues":
-            self.send_json(404, {"error": "no such endpoint"})
-            return
-        record = json.loads(raw)
-        record["number"] = NEXT_NUMBER
-        record.setdefault("state", "open")
-        ISSUES[NEXT_NUMBER] = record
-        NEXT_NUMBER += 1
-        self.send_json(201, record)
+            self.missing()
 
     def do_PUT(self):
-        if not self.authorized():
-            self.deny()
+        if self.path != "/records/1":
+            self.missing()
             return
-        n = self.issue_number()
-        if n not in ISSUES:
-            self.send_json(404, {"error": f"no issue {n}"})
+        body = self.sent_body()
+        if body is None:
+            self.reply(400, {"message": "Body was not JSON", "status": "400"})
             return
-        record = json.loads(self.read_body())
-        record["number"] = n
-        ISSUES[n] = record  # the whole record is replaced
-        self.send_json(200, record)
+        STORE["1"] = body  # replaces the record, so omitted keys are gone
+        self.reply(200, STORE["1"])
 
     def do_PATCH(self):
-        if not self.authorized():
-            self.deny()
+        if self.path != "/records/1" or "1" not in STORE:
+            self.missing()
             return
-        n = self.issue_number()
-        if n not in ISSUES:
-            self.send_json(404, {"error": f"no issue {n}"})
+        body = self.sent_body()
+        if body is None:
+            self.reply(400, {"message": "Body was not JSON", "status": "400"})
             return
-        ISSUES[n].update(json.loads(self.read_body()))  # merged into the record
-        self.send_json(200, ISSUES[n])
+        STORE["1"].update(body)  # merges, so omitted keys survive
+        self.reply(200, STORE["1"])
 
     def do_DELETE(self):
-        if not self.authorized():
-            self.deny()
-            return
-        n = self.issue_number()
-        if n not in ISSUES:
-            self.send_json(404, {"error": f"no issue {n}"})
-            return
-        del ISSUES[n]
-        self.send_response(204)  # no content, no body at all
-        self.end_headers()
+        if self.path == "/records/1" and "1" in STORE:
+            del STORE["1"]
+            self.reply(204)
+        else:
+            self.missing()
+
+    def do_POST(self):
+        self.reply(405, {"message": "Use PUT to create this record", "status": "405"})
 
 
-if __name__ == "__main__":
-    print("docs API listening on http://127.0.0.1:8077 -- Ctrl-C to stop")
-    ThreadingHTTPServer(("127.0.0.1", 8077), Handler).serve_forever()
+ThreadingHTTPServer(("127.0.0.1", 8038), Handler).serve_forever()
 ```
 
-It must be `ThreadingHTTPServer` and not `HTTPServer`. `requests` keeps the connection open after a call, and a single-threaded server never gets around to accepting the second request — the script hangs with no error and no traceback.
-
-The endpoints it understands:
-
-| Endpoint | What it does | Token required |
-| --- | --- | --- |
-| `GET /issues` | Lists every issue | No |
-| `GET /issues/<n>` | Reads one issue | No |
-| `POST /issues` | Creates an issue and assigns it a number | Yes |
-| `PUT /issues/<n>` | Replaces an issue with what you sent | Yes |
-| `PATCH /issues/<n>` | Merges what you sent into the issue | Yes |
-| `DELETE /issues/<n>` | Deletes an issue | Yes |
-| `POST /echo` | Repeats the body and content type it received | No |
-
-The token it accepts is `docs-token-123`. Export it before running any example:
+The following command starts it, and it prints nothing and keeps running until you stop it with Ctrl-C, so give it a terminal of its own and run the examples in another:
 
 ```bash
-export DOCS_API_TOKEN=docs-token-123
+python3 stub.py
 ```
 
-The server holds its data in memory, so restarting it resets the two starting issues. The examples in this lesson are written to run in order against a freshly started server, and the exercise assumes a fresh one too — restart it before you begin the exercise.
+Example 6 and the exercise write to a repository of yours, which takes two things you set up once. Create a repository named `ThrowAway` under your own account, and create a fine-grained personal access token whose repository permissions include **Issues: read and write** for it. Then export the token as `GITHUB_TOKEN` in the shell you run the examples from, which is the pattern Lesson 31 established and the only place a token belongs. Nothing in this lesson prints a token, and a token never belongs in a script's source.
 
-The endpoint names and behavior are deliberately ordinary. Point `BASE` at a real service and the same four calls work unchanged.
+## Terminology and theory
 
-## Terminology — a body, a method, and credentials
+A **request body** is the data you send with a request, carried separately from the URL. A `GET` puts everything it has to say in the path and the query string, which is why Lesson 37 needed only `params=`. A write has more to say than a URL can hold, so the fields go in the body, and the request's headers tell the server how to interpret the bytes that arrive.
 
-**The request body is the data you send.** A GET request asks for something and carries no body; the four methods in this lesson carry one. The body is a block of text with a **content type** — a header naming the format the text is in, so the server knows how to parse it. `application/json` and `application/x-www-form-urlencoded` are the two you will meet, and `requests` sets the header for you based on which argument you used.
+The four write methods differ in what they claim to do to the record, and the server, not `requests`, decides what that claim means. `POST` creates something new and lets the server name it, so sending the same `POST` twice creates two records. `PUT` replaces a record with exactly what you sent, so a field you leave out is gone. `PATCH` amends a record with just the fields you sent, so a field you leave out survives. `DELETE` removes it. The difference between `PUT` and `PATCH` is the one that costs people data, because a partial `PUT` is a successful request: it answers `200`, and the fields you didn't mention are simply no longer there.
 
-**The method is a verb, and the server decides what it means.** HTTP defines what each verb is *supposed* to do; nothing enforces it. The conventional meanings, which nearly every API follows:
+This is where **idempotent** earns its place, because it's the word APIs use for the distinction. An idempotent request leaves the same state behind however many times you send it, which `PUT` and `DELETE` both do, and which `POST` doesn't. It matters practically rather than theoretically: a `POST` you retry after a timeout may well create a second record, and a `DELETE` you retry is safe.
 
-- `POST` creates something new. The server assigns the identifier, so you do not know the issue number until the response comes back.
-- `PUT` replaces a record wholesale with what you sent.
-- `PATCH` changes only the fields you sent and leaves the rest alone.
-- `DELETE` removes a record.
+A **header** is one name-and-value pair of metadata attached to a request or a response, and `requests` sets several on your behalf before you set any of your own. Two headers matter to GitHub specifically. `Accept` asks for a particular response format, and GitHub's current one is `application/vnd.github+json`. `X-GitHub-Api-Version` pins the API version, and `2022-11-28` is the value to pin: it's what GitHub uses when you send no version header at all, so pinning it means your script keeps behaving the same way on the day GitHub changes its default.
 
-`PUT` and `PATCH` are the pair worth memorizing, because sending a `PUT` when you meant a `PATCH` destroys every field you did not include, and the response looks successful.
+A **credential** is whatever proves the request is allowed, and it travels in a header too. There are three shapes you'll meet, and GitHub uses the first. A **bearer token** goes in the `Authorization` header as the word `Bearer` and a space and the token. An **API key** goes in a header the service names itself, often something like `X-API-Key`, and differs from a bearer token only in which header carries it. **Basic auth** puts a username and a password in the same `Authorization` header, as the word `Basic` and a space and the pair joined by a colon and encoded as base64.
 
-**Idempotent** means "doing it twice has the same effect as doing it once." `PUT` and `DELETE` are idempotent — replacing a record with the same content twice leaves the same record, and deleting something already deleted changes nothing further. `POST` is not: two identical `POST` calls create two records. This is why a retried `POST` is the one that produces duplicates.
+Base64 is worth one sentence of its own, because its appearance invites a wrong conclusion. It's an encoding and not encryption, so anyone holding the header can reverse it to the original username and password in a second, which is why basic auth is only ever as safe as the HTTPS connection carrying it.
 
-**Credentials** are the proof that you are allowed to write. They travel in a header on every single request — HTTP has no concept of "logging in and staying logged in," so there is no session to establish and nothing to keep alive. Three shapes cover almost everything:
+Two failures round this out, and they look alike until you read the body. A request whose credential is absent or unreadable gets `401`, which means GitHub doesn't know who you are. A request whose credential is fine but insufficient gets `403`, which means GitHub knows who's asking and is refusing anyway, and with a fine-grained token that usually means a permission you didn't grant. Both are plain responses, not exceptions, so nothing in Python raises and your script carries on unless you check.
 
-- An **API key** in a custom header, whose name the API picks: `X-API-Key: <key>`.
-- A **Bearer token** in the standard `Authorization` header: `Authorization: Bearer <token>`. This is what GitHub uses.
-- **Basic auth**, a username and password in the same header, encoded: `Authorization: Basic <encoded>`.
+## Read the syntax
 
-## Syntax — the four calls, and what changes between them
+The four write calls take the same shape as the `GET` from Lesson 37, differing only in the function name and in whether they carry a body.
 
-The shape is the same as `get()`: a URL, some keyword arguments, and a `Response` object comes back.
+The following block shows all four against one URL, with a comment on each saying what the server does with it:
 
 ```python
-import requests
-
-BASE = "http://127.0.0.1:8077"
-headers = {"Authorization": "Bearer docs-token-123"}
-payload = {"title": "index.md 404s", "labels": ["docs"]}
-
-requests.post(f"{BASE}/issues", json=payload, headers=headers)     # create
-requests.put(f"{BASE}/issues/1", json=payload, headers=headers)    # replace
-requests.patch(f"{BASE}/issues/1", json=payload, headers=headers)  # change some fields
-requests.delete(f"{BASE}/issues/1", headers=headers)               # remove; no body to send
+requests.post(url, json=payload, timeout=10)    # create; the server names the result
+requests.put(url, json=payload, timeout=10)     # replace; omitted fields are gone
+requests.patch(url, json=payload, timeout=10)   # amend; omitted fields survive
+requests.delete(url, timeout=10)                # remove; usually no body either way
 ```
 
-### `json=` builds a JSON body, `data=` builds a form body
+Keep `timeout=10` on every one of them for the reason Lesson 37 gave, which is that a request without a timeout can hang forever. It matters more here than it did for a `GET`, because a write that hangs leaves you unsure whether the change landed.
 
-Both arguments take a dict, and choosing the wrong one is a `400` that says nothing about encoding. Run them side by side and look at what actually left your machine:
+The body goes in one of two keyword arguments, and choosing the wrong one is the commonest mistake in this lesson.
+
+The following two calls send the same dictionary and produce entirely different requests:
 
 ```python
-payload = {"title": "Docs typo"}
-
-r = requests.post(f"{BASE}/echo", json=payload)
-print(r.request.headers["Content-Type"], "|", r.request.body)
-
-r = requests.post(f"{BASE}/echo", data=payload)
-print(r.request.headers["Content-Type"], "|", r.request.body)
+payload = {"title": "Document the rate limit", "labels": ["docs"]}
+requests.post(url, json=payload, timeout=10)    # JSON: Content-Type set for you
+requests.post(url, data=payload, timeout=10)    # a web form, and the list collapses
 ```
 
-```
-application/json | b'{"title": "Docs typo"}'
-application/x-www-form-urlencoded | title=Docs+typo
-```
+Use `json=` for an API. It serializes the dictionary to JSON, sets `Content-Type: application/json` without being asked, and preserves the structure, so a nested dictionary or a list of strings arrives intact. Use `data=` for an HTML form, which is what it builds: it encodes the pairs the way a browser's form submission does, under `Content-Type: application/x-www-form-urlencoded`, and that format has no way to express a list or a nested object. Passing both at once is the trap worth knowing about, because `data=` wins silently and the JSON you thought you were sending never leaves.
 
-`json=` serializes the dict to JSON and sets `Content-Type: application/json`. `data=` with a dict encodes it the way an HTML form does and sets `Content-Type: application/x-www-form-urlencoded`, a flat list of `key=value` pairs with no way to express nesting. Anything nested is mangled rather than rejected:
+Your own headers go in `headers=`, as a dictionary that `requests` merges with the ones it already sets.
+
+The following block sets two headers, and then removes one that `requests` would otherwise send:
 
 ```python
-r = requests.post(f"{BASE}/echo", data={"title": "t", "labels": ["docs", "bug"]})
-print("list :", r.request.body)
-
-r = requests.post(f"{BASE}/echo", data={"title": "t", "user": {"login": "jdoe"}})
-print("dict :", r.request.body)
+head = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+requests.get(url, headers=head, timeout=10)             # adds both to the request
+requests.get(url, headers={"User-Agent": None}, timeout=10)   # drops a default header
 ```
 
-```
-list : title=t&labels=docs&labels=bug
-dict : title=t&user=login
-```
+A header you set replaces the default of the same name, and a header whose value is `None` is removed from the request rather than sent as empty. That last form is the only way to drop something `requests` adds for you.
 
-The list survives only as a repeated key, and the nested dict is reduced to its *key* — `jdoe` never left your machine. APIs that document a JSON body want `json=`.
+Credentials reach the server through either `headers=` or the dedicated `auth=` argument, depending on their shape.
 
-`response.request` is the request object that `requests` built and sent, so `.request.body` and `.request.headers` are how you check what you actually transmitted rather than what you meant to. This is the fastest way to settle "is the API wrong or am I?"
-
-> [!warning] Passing both `json=` and `data=` silently drops the JSON
-> `data=` wins, the JSON body never leaves your machine, and nothing warns you.
-> ```python
-> r = requests.post(f"{BASE}/echo", json={"title": "Docs typo"}, data={"state": "open"})
-> print(r.request.headers["Content-Type"], "|", r.request.body)
-> ```
-> ```
-> application/x-www-form-urlencoded | state=open
-> ```
-
-### `PATCH` merges, `PUT` replaces
-
-The two calls look identical, and the responses are both `200`. The difference shows up in what the record holds afterwards:
+The following block shows all three credential forms, with the token read from the environment rather than written down:
 
 ```python
-# Sends one field, changes one field. Everything else survives.
-requests.patch(f"{BASE}/issues/1", json={"state": "closed"}, headers=headers)
-
-# Sends one field, and the record is now only that field.
-requests.put(f"{BASE}/issues/1", json={"title": "auth.md is out of date"}, headers=headers)
+token = os.environ["GITHUB_TOKEN"]
+requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10)  # GitHub's
+requests.get(url, headers={"X-API-Key": token}, timeout=10)      # an API key header
+requests.get(url, auth=("josh", "s3cret"), timeout=10)           # basic auth
 ```
 
-Worked Example 2 runs both against the same issue and prints the record after each.
+The first two are the same mechanism with different header names, and you build the header value yourself. The third is different in that `requests` does the work: you hand `auth=` a two-item tuple of username and password, and it builds the `Authorization: Basic …` header, base64 included. Reading the token with `os.environ["GITHUB_TOKEN"]` raises `KeyError` when the variable is unset, which Lesson 31 preferred over `os.getenv()` for exactly this case, since a write that proceeds without a credential is worse than one that stops.
 
-### Three ways to send credentials
+## Work through the examples
 
-The first two are just headers you build yourself. The third has its own argument.
+Each example adds one thing to the one before it. The first five run without a token and their output is from a real run; the last one writes to a repository, so its output came from running it on my own machine.
+
+### Example 1: Send a JSON body, and see what `data=` sends instead
+
+This first example establishes the base case, which is what each of the two body arguments actually puts on the wire.
+
+The following script sends one dictionary twice, once each way, and reads back what `requests` built:
 
 ```python
-payload = {"title": "Docs typo"}
+payload = {"title": "Document the rate limit", "labels": ["docs"]}
 
-r = requests.post(f"{BASE}/echo", json=payload, headers={"X-API-Key": "docs-token-123"})
-print("api key:", r.request.headers["X-API-Key"])
+as_json = requests.post(ISSUES, json=payload, timeout=10)     # JSON body
+print("json=", as_json.request.headers["Content-Type"])
+print("     ", as_json.request.body)
 
-r = requests.post(f"{BASE}/echo", json=payload,
-                  headers={"Authorization": "Bearer docs-token-123"})
-print("bearer :", r.request.headers["Authorization"])
-
-r = requests.post(f"{BASE}/echo", json=payload, auth=("docs-bot", "docs-token-123"))
-print("basic  :", r.request.headers["Authorization"])
+as_form = requests.post(ISSUES, data=payload, timeout=10)     # form body
+print("data=", as_form.request.headers["Content-Type"])
+print("     ", as_form.request.body)
+print("refused:", as_json.status_code, as_json.json()["message"])
 ```
 
+The following output shows both bodies, and the refusal that both requests got for having no credential:
+
+```output
+json= application/json
+      b'{"title": "Document the rate limit", "labels": ["docs"]}'
+data= application/x-www-form-urlencoded
+      title=Document+the+rate+limit&labels=docs
+refused: 401 Requires authentication
 ```
-api key: docs-token-123
-bearer : Bearer docs-token-123
-basic  : Basic ZG9jcy1ib3Q6ZG9jcy10b2tlbi0xMjM=
-```
 
-`auth=` takes a `(username, password)` tuple and builds the `Authorization` header for you. What it builds is Base64, which is an encoding and not encryption — `base64.b64decode("ZG9jcy1ib3Q6ZG9jcy10b2tlbi0xMjM=")` gives back `docs-bot:docs-token-123` for anyone who intercepts it. Basic auth is only safe over HTTPS, and the same is true of a Bearer token.
+The `b` in front of the JSON body marks it as bytes rather than characters, which is what finally goes over the connection. Compare the two bodies and the loss in the second one is plain: `labels` went from a list containing `"docs"` to the string `docs`, and nothing in the request records that it was ever a list. Both calls answered `401 Requires authentication`, because neither carried a token, and neither raised an exception on the way.
 
-### The token comes from the environment, and a missing one is silent
+### Example 2: Set your own headers, and watch one get rejected
 
-Lesson 31 covered the two readers. Which one you pick changes how the failure looks:
+This example adds headers of your own, and shows that the server reads them rather than ignoring them.
+
+The following script pins the version GitHub documents, then pins one that no longer exists:
 
 ```python
-import os
+pinned = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+asked = requests.get(REPO, headers=pinned, timeout=10)
+print("accept  :", asked.request.headers["Accept"])
+print("version :", asked.request.headers["X-GitHub-Api-Version"])
+print("default :", requests.get(f"{API}/zen", timeout=10).request.headers["Accept"])
 
-token = os.getenv("DOCS_API_TOKEN")     # returns None when the variable is unset
-token = os.environ["DOCS_API_TOKEN"]    # raises `KeyError` when the variable is unset
+dead = requests.get(f"{REPO}/issues", params={"per_page": 1}, timeout=10,
+                    headers={"X-GitHub-Api-Version": "2019-01-01"})
+print("dead    :", dead.status_code, dead.json()["errors"])
 ```
 
-`os.getenv()` is the safer default only if you check the result. Interpolating an unset variable into an f-string produces a header that is well-formed and wrong:
+The following output confirms both headers went out, names the `Accept` that `requests` sends when you set none, and shows what an unsupported version costs you:
+
+```output
+accept  : application/vnd.github+json
+version : 2022-11-28
+default : */*
+dead    : 400 The version you specified in the "X-GitHub-API-Version" request header, "2019-01-01", is not a supported version. The following versions are currently supported: "2026-03-10" (most recent) and "2022-11-28".
+```
+
+The default `Accept` is `*/*`, meaning no preference at all, which is why pinning the GitHub media type is worth doing rather than relying on the default. A dead version answers `400 Bad Request` and names the versions that work, so this is one failure that tells you how to fix it. Setting a header's value to `None` instead of a string removes it from the request, and a `requests.get(url, headers={"User-Agent": None})` sends no `User-Agent` at all rather than an empty one.
+
+The dead-version request deliberately asks for the issues list rather than the repository the two lines above it just fetched, and the reason is a caching behavior worth knowing about. GitHub checks the version header only on a request that reaches the API: when it answers a URL from its cache, the response comes back without the header being looked at. Sending the retired version to a URL you have already fetched successfully therefore answers `200` and hides the error, which is exactly what happened the first time I wrote this example.
+
+> [!note] Confirming the caching behavior yourself
+> Fetch one URL with `X-GitHub-Api-Version` set to `2022-11-28`, then fetch the identical URL with it set to `2019-01-01`. The second call answers `200`. Change one character of the query string so the URL is new and the same retired version answers `400`.
+
+### Example 3: Replace a record with `PUT`, and amend one with `PATCH`
+
+This example is the one worth slowing down for, because it puts the two methods against the same record and the same partial body, so the only variable left is the method name.
+
+The following script seeds a four-field record, sends one field by each method, and prints what the record holds afterward:
 
 ```python
-token = os.getenv("DOCS_API_TOKEN")   # unset
-r = requests.post(f"{BASE}/issues", json=payload,
-                  headers={"Authorization": f"Bearer {token}"})
-print(r.status_code, "sent:", repr(r.request.headers["Authorization"]))
+whole = {"path": "docs/api/auth.md", "title": "Authentication",
+         "owner": "josh", "state": "published"}
+rename = {"title": "Authentication and tokens"}
+
+requests.put(STUB, json=whole, timeout=10)                 # seed the record
+replaced = requests.put(STUB, json=rename, timeout=10)
+print("PUT  ", replaced.status_code, replaced.json())
+
+requests.put(STUB, json=whole, timeout=10)                 # seed it again
+amended = requests.patch(STUB, json=rename, timeout=10)
+print("PATCH", amended.status_code, amended.json())
 ```
 
-```
-401 sent: 'Bearer None'
+The following output is the whole lesson of this example, and the status code is the same on both lines:
+
+```output
+PUT   200 {'title': 'Authentication and tokens'}
+PATCH 200 {'path': 'docs/api/auth.md', 'title': 'Authentication and tokens', 'owner': 'josh', 'state': 'published'}
 ```
 
-Passing the `None` on its own instead is no better — `requests` treats a header value of `None` as an instruction to remove that header, so the request goes out with no `Authorization` at all and gets the same `401`. Both failures are indistinguishable from a bad token in the server's reply, which is why the guard belongs at the top of the script:
+The `PUT` took the record from four fields to one. The `path`, `owner`, and `state` fields weren't changed and weren't rejected; they were replaced along with everything else, by a body that didn't mention them. The `PATCH` sent the identical body and kept all four. Both answered `200`, so there's no signal in the status code, in the headers, or in any exception to tell you which of the two just happened, and a script that reaches for `PUT` when it means `PATCH` destroys data and reports success. Reach for `PATCH` whenever you're changing part of something that already exists, and use `PUT` only when you genuinely hold the entire record.
+
+### Example 4: Remove a record, and read a response with no body
+
+This example adds `DELETE`, whose response is shaped unlike any other in this lesson, and it runs directly after Example 3, which left the record in place.
+
+The following script deletes the record, deletes it again, and then tries the same thing against a GitHub issue:
 
 ```python
-token = os.getenv("DOCS_API_TOKEN")
-if not token:
-    print("DOCS_API_TOKEN is not set; nothing was sent.")
+first = requests.delete(STUB, timeout=10)
+print("first :", first.status_code, first.ok, "body length", len(first.text))
+
+second = requests.delete(STUB, timeout=10)
+print("second:", second.status_code, second.json()["message"])
+
+absent = requests.delete(f"{API}/repos/JoshGo6/ThrowAway/issues/4", timeout=10)
+print("GitHub:", absent.status_code, absent.json()["message"])
 ```
 
-`if not token:` rather than `if token is None:` because a variable exported as an empty string is set, and an empty string is falsy — Lesson 14's distinction, and this is where it bites.
+The following output shows a success with nothing in it, and two different roads to the same `404`:
 
-> [!warning] A rejected write is still a delivered response
-> `requests` raises nothing on a `401`, `403`, `404`, or `500`. The call returns normally and the status code is the only signal that your write did not happen.
-> ```python
-> r = requests.post(f"{BASE}/issues", json=payload)   # no credentials at all
-> print(r.status_code, r.json())
-> ```
-> ```
-> 401 {'error': 'bad or missing credentials', 'hint': 'send Authorization: Bearer <token>'}
-> ```
-> A script that never checks `r.status_code` reports success on every write it failed to make. Lesson 39 turns this into a repeatable pattern.
+```output
+first : 204 True body length 0
+second: 404 Not Found
+GitHub: 404 Not Found
+```
 
-## Worked examples
+A `204 No Content` is a success with an empty body, and `response.ok` is `True` for it. Calling `response.json()` on that response raises `requests.exceptions.JSONDecodeError`, because an empty string isn't JSON, so a `DELETE` is the one call where parsing the body unconditionally breaks a working script. The second delete found nothing left and answered `404`, which is the normal outcome of repeating a `DELETE` rather than a problem. GitHub's `404` on the last line has a different cause worth knowing: there's no endpoint that deletes an issue at all, so that `404` reports the absence of the route rather than the absence of the issue. An issue's life ends at a `PATCH` that sets its `state` to `closed`, which is what Example 6 does.
 
-Start the server fresh and run these in order.
+### Example 5: Let `auth=` build a basic-auth header
 
-### Example 1 — creating a record, and letting the server name it
+This example adds the one credential form you don't build yourself, and shows what `requests` puts in the header on your behalf.
 
-`POST` sends the fields you know and the response tells you what the server made of them. The issue number is in the response and nowhere else.
+The following script sends two different username-and-password pairs and prints the header each one produced:
 
 ```python
-import os
-import requests
+josh = requests.get(f"{API}/user", auth=("josh", "not-a-real-token"), timeout=10)
+print("josh  :", josh.request.headers["Authorization"])
 
-BASE = "http://127.0.0.1:8077"
+ada = requests.get(f"{API}/user", auth=("ada", "not-a-real-token"), timeout=10)
+print("ada   :", ada.request.headers["Authorization"])
+print("basic :", josh.status_code, josh.json()["message"])
 
-token = os.getenv("DOCS_API_TOKEN")
-if not token:
-    print("DOCS_API_TOKEN is not set; nothing was sent.")
-else:
-    headers = {"Authorization": f"Bearer {token}"}
-    new_issue = {
-        "title": "index.md 404s",
-        "body": "The link to auth.md is broken.",
-        "labels": ["docs", "bug"],
-        "user": "jdoe",
-    }
-
-    response = requests.post(f"{BASE}/issues", json=new_issue, headers=headers)
-
-    print("status:", response.status_code)
-    print("sent  :", response.request.body)
-    print("type  :", response.request.headers["Content-Type"])
-
-    created = response.json()
-    print(f"created #{created['number']}: {created['title']} ({created['state']})")
+bearer = requests.get(f"{API}/user", timeout=10,
+                      headers={"Authorization": "Bearer ghp_notarealtoken"})
+print("bearer:", bearer.status_code, bearer.json()["message"])
 ```
 
+The following output shows the two basic-auth headers, then the two different ways GitHub says no:
+
+```output
+josh  : Basic am9zaDpub3QtYS1yZWFsLXRva2Vu
+ada   : Basic YWRhOm5vdC1hLXJlYWwtdG9rZW4=
+basic : 401 Requires authentication
+bearer: 401 Bad credentials
 ```
-status: 201
-sent  : b'{"title": "index.md 404s", "body": "The link to auth.md is broken.", "labels": ["docs", "bug"], "user": "jdoe"}'
-type  : application/json
-created #3: index.md 404s (open)
-```
 
-Three things to take from the output. The status is `201` and not `200` — the "created" status, which is what a well-behaved API returns from a successful `POST`. The body that went out is bytes, already serialized from your dict, and `Content-Type` was set for you by `json=`. And the response carries two fields you never sent: `number`, assigned by the server, and `state`, which the server defaulted. Reading the created record back out of the response is how you learn either one.
+Both headers are the word `Basic` and a base64 encoding of `username:password`, and the two values differ only because the usernames do, which is as much obfuscation as basic auth provides. The credentials here are invented, so both requests failed, but the failure messages differ and the difference is informative: a malformed bearer token gets `Bad credentials`, because GitHub recognized a token and rejected it, while the basic-auth attempt gets `Requires authentication`, because nothing GitHub could use as a credential arrived. Reading that message is quicker than guessing which of your two credential mechanisms is wrong.
 
-### Example 2 — `PUT` deletes the fields you did not send
+### Example 6: Create and close a real issue with your token
 
-Both calls target the same issue and both succeed. Watch the record.
+This last example puts a working credential on a real write, and it's the only example here that changes anything.
+
+The following script creates an issue in your throwaway repository and immediately closes it:
 
 ```python
-import os
-import requests
-
-BASE = "http://127.0.0.1:8077"
-headers = {"Authorization": f"Bearer {os.environ['DOCS_API_TOKEN']}"}
-
-
-def show(label):
-    issue = requests.get(f"{BASE}/issues/1").json()
-    print(f"{label:8} {issue}")
-
-
-show("before")
-
-# PATCH sends only the fields you want changed; everything else is left alone.
-requests.patch(f"{BASE}/issues/1", json={"state": "closed"}, headers=headers)
-show("patched")
-
-# PUT sends the whole record. Fields you leave out are gone from the record.
-requests.put(f"{BASE}/issues/1", json={"title": "auth.md is out of date"}, headers=headers)
-show("put")
+head = {"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+        "X-GitHub-Api-Version": "2022-11-28"}
+made = requests.post(ISSUES, json={"title": "Document the rate limit"},
+                     headers=head, timeout=10)
+print("POST ", made.status_code, made.reason)
+if not made.ok:
+    print("gave up:", made.json()["message"], file=sys.stderr)
+    sys.exit(1)
+shut = requests.patch(f"{ISSUES}/{made.json()['number']}", headers=head, timeout=10,
+                      json={"state": "closed", "state_reason": "completed"})
+print("PATCH", shut.status_code, shut.json()["state"], shut.json()["state_reason"])
 ```
 
-```
-before   {'number': 1, 'title': 'auth.md is out of date', 'body': 'Rewrite the token section.', 'state': 'open', 'labels': ['docs', 'auth'], 'user': 'jdoe'}
-patched  {'number': 1, 'title': 'auth.md is out of date', 'body': 'Rewrite the token section.', 'state': 'closed', 'labels': ['docs', 'auth'], 'user': 'jdoe'}
-put      {'title': 'auth.md is out of date', 'number': 1}
-```
+The following output came from running that script on my own machine, against my own repository:
 
-The `PATCH` changed `state` and left `body`, `labels`, and `user` alone. The `PUT` sent a title that was already correct — an edit that changes nothing — and destroyed four fields doing it. Its response was `200` with a record that looks fine in isolation, which is exactly why this one is hard to catch by eye. When an API's documentation says a method "updates" a resource, check which of the two verbs it means before you send it.
-
-This example reads the token with `os.environ[...]` rather than `os.getenv(...)`, which is the other reasonable choice: it raises `KeyError` immediately instead of letting an unset token reach the server as the string `None`.
-
-### Example 3 — a `204` has no body to parse
-
-`DELETE` sends no body and, on success, usually gets none back.
-
-```python
-import os
-import requests
-
-BASE = "http://127.0.0.1:8077"
-credentials = ("docs-bot", os.environ["DOCS_API_TOKEN"])
-
-response = requests.delete(f"{BASE}/issues/2", auth=credentials)
-print("status      :", response.status_code)
-print("sent header :", response.request.headers["Authorization"])
-print("body        :", repr(response.text))
-
-try:
-    response.json()
-except requests.exceptions.JSONDecodeError as exc:
-    print("json()      :", exc)
-
-# The second delete finds nothing to delete. requests does not treat that as a
-# failure -- the response arrives normally and the status code is the only signal.
-again = requests.delete(f"{BASE}/issues/2", auth=credentials)
-print("second try  :", again.status_code, again.json())
+```output
+POST  201 Created
+PATCH 200 closed completed
 ```
 
-```
-status      : 204
-sent header : Basic ZG9jcy1ib3Q6ZG9jcy10b2tlbi0xMjM=
-body        : ''
-json()      : Expecting value: line 1 column 1 (char 0)
-second try  : 404 {'error': 'no issue 2'}
-```
-
-`204` means "done, and there is nothing to tell you." `response.text` is the empty string, and calling `.json()` on it raises `requests.exceptions.JSONDecodeError` with a message about column 1 that says nothing about the status code — so a script that parses every response the same way crashes on its successful deletes and not on its failed ones. Check the status before parsing.
-
-The second delete returns `404` with a JSON error body, and no exception is raised. Notice that both outcomes — deleted, and never existed — leave the server in the same state, which is what idempotent means in practice.
+A successful create answers `201 Created` rather than `200`, and its body is the new issue, which is where `made.json()["number"]` comes from — the server named the record, and a `POST` is the only method here that leaves you to find out what the name turned out to be. The `if not made.ok` guard between the two calls is doing real work rather than ceremony: without it, a refused create still returns a response, `made.json()["number"]` raises `KeyError` against the error body, and the traceback names the missing key instead of GitHub's explanation. I hit exactly that while writing this lesson, and the `403` underneath it said `Resource not accessible by personal access token`, which is the message a fine-grained token produces when it can read the repository but wasn't granted **Issues: write**.
 
 ## Lookup table
 
-| Use when                         | Call                                                 | Result                                                                                       |
-| -------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Create a record                  | `requests.post(url, json=payload, headers=headers)`  | `201`; response holds the record plus the number the server assigned                         |
-| Replace a whole record           | `requests.put(url, json=payload, headers=headers)`   | `200`; every field not in `payload` is gone from the record                                  |
-| Change some fields               | `requests.patch(url, json=payload, headers=headers)` | `200`; `payload` is merged in, other fields survive                                          |
-| Remove a record                  | `requests.delete(url, headers=headers)`              | `204` with an empty body; the record is gone                                                 |
-| Remove a record twice            | `requests.delete(url, headers=headers)`              | `404` with a JSON error body; no exception, server unchanged                                 |
-| Send a JSON body                 | `json=payload`                                       | Body `b'{"title": "Docs typo"}'`, `Content-Type: application/json`                           |
-| Send an HTML-form body           | `data=payload`                                       | Body `title=Docs+typo`, `Content-Type: application/x-www-form-urlencoded`                    |
-| Pass both by mistake             | `requests.post(url, json=a, data=b)`                 | `data` wins; the JSON is dropped and nothing warns                                           |
-| Send an API key                  | `headers={"X-API-Key": token}`                       | Header sent verbatim: `docs-token-123`                                                       |
-| Send a Bearer token              | `headers={"Authorization": f"Bearer {token}"}`       | Header sent as `Bearer docs-token-123`                                                       |
-| Send a username and password     | `auth=("docs-bot", token)`                           | Header built for you: `Basic ZG9jcy1ib3Q6ZG9jcy10b2tlbi0xMjM=`, decodable by anyone          |
-| Check what you actually sent     | `response.request.body`, `response.request.headers`  | The serialized body and the full header dict of the outgoing request                         |
-| Read a token, tolerating absence | `os.getenv("DOCS_API_TOKEN")`                        | The value, or `None` when unset — which reaches the server as `Bearer None` and gets a `401` |
-| Read a token, failing loudly     | `os.environ["DOCS_API_TOKEN"]`                       | The value, or raises `KeyError` before any request is sent                                   |
-| Unset a header on purpose        | `headers={"Authorization": None}`                    | The header is omitted from the request entirely; the server sees no credentials              |
-| Parse a body that is not there   | `response.json()` on a `204`                         | Raises `requests.exceptions.JSONDecodeError`: `Expecting value: line 1 column 1 (char 0)`    |
-| Detect a rejected write          | `response.status_code`                               | The only signal; `401`, `403`, `404`, and `500` all return normally                          |
+The following table covers everything this lesson introduces, with every result taken from a real run against either GitHub or the local server:
 
-## Exercise #1 — apply a plan file of issue changes
+| Use when | Call | Result |
+| --- | --- | --- |
+| You want to create something and let the server name it | `requests.post(url, json=payload, timeout=10)` | `201 Created`, with the new record as the body |
+| You want to send a dictionary as a JSON body | `json=payload` | Body `b'{"title": "…", "labels": ["docs"]}'`, `Content-Type: application/json` |
+| You want to send a dictionary as an HTML form | `data=payload` | Body `title=Document+the+rate+limit&labels=docs`; the list collapsed to one value |
+| You passed both body arguments by mistake | `requests.post(url, json=a, data=b)` | `data` wins silently; the body is form-encoded and `a` never leaves |
+| You want to replace a record with what you sent | `requests.put(url, json=payload, timeout=10)` | `200`, and the record is now only `{'title': 'Authentication and tokens'}` |
+| You want to change part of a record and keep the rest | `requests.patch(url, json=payload, timeout=10)` | `200`, and all four fields survive with `title` changed |
+| You sent a `PUT` with no body at all | `requests.put(url, timeout=10)` | `200`, request body `None`, and the record is now `{}` |
+| You want to remove a record | `requests.delete(url, timeout=10)` | `204`, `response.ok` is `True`, `len(response.text)` is `0` |
+| You parsed a `204` without checking for a body | `response.json()` on a `204` | Raises `requests.exceptions.JSONDecodeError` |
+| You repeated a `DELETE` that already succeeded | `requests.delete(url, timeout=10)` | `404 Not Found`, which is the expected second outcome |
+| You want to delete a GitHub issue | `requests.delete(f"{API}/repos/…/issues/4")` | `404 Not Found`; no such endpoint exists, so close it instead |
+| You want to close a GitHub issue | `json={"state": "closed", "state_reason": "completed"}` | `200`, with `state` `closed` and `state_reason` `completed` |
+| You want to add headers to a request | `requests.get(url, headers=head, timeout=10)` | Both headers appear in `response.request.headers` |
+| You want to drop a header `requests` sets for you | `headers={"User-Agent": None}` | The header is absent from the request rather than empty |
+| You want to know the `Accept` sent when you set none | `response.request.headers["Accept"]` | `'*/*'`, meaning no preference |
+| You want to pin GitHub's API version | `{"X-GitHub-Api-Version": "2022-11-28"}` | Accepted; it's also what an omitted header selects |
+| You pinned a version GitHub no longer supports | `{"X-GitHub-Api-Version": "2019-01-01"}` | `400` on a URL GitHub answers freshly, and `errors` names `"2026-03-10"` and `"2022-11-28"` |
+| You sent a retired version to a URL you just fetched | `{"X-GitHub-Api-Version": "2019-01-01"}` | `200` from the cache, with the header never checked |
+| You want to send a bearer token | `headers={"Authorization": f"Bearer {token}"}` | Accepted; `201` on the create in Example 6 |
+| You want to send an API key in a header | `headers={"X-API-Key": key}` | The same mechanism as a bearer token, under a name the service picks |
+| You want `requests` to build basic auth for you | `auth=("josh", "not-a-real-token")` | Header `Basic am9zaDpub3QtYS1yZWFsLXRva2Vu` |
+| You sent a token GitHub can read but not accept | `headers={"Authorization": "Bearer ghp_notarealtoken"}` | `401`, message `Bad credentials` |
+| You sent no credential on a write | `requests.post(ISSUES, json=payload)` | `401`, message `Requires authentication` |
+| You sent a token missing the permission it needs | A fine-grained token without **Issues: write** | `403`, message `Resource not accessible by personal access token` |
+| You want the body `requests` actually built | `response.request.body` | `b'{"title": "Document the rate limit", "labels": ["docs"]}'` |
+| You want the token without writing it in the script | `os.environ["GITHUB_TOKEN"]` | The token's value, or `KeyError` when the variable is unset |
 
-Write `sync_issues.py`, a script that reads a file describing changes to make and sends each one to the API.
+## Exercise: Open, amend, and close an issue from the command line
 
-Restart `docs_api.py` first so the data is back to its two starting issues, and save this as `issue-plan.json`:
+Write `issue_run.py`, which opens one issue in your throwaway repository, changes it twice, reads it back, closes it, and leaves a Markdown record of every call it made.
 
-```json
-[
-  {
-    "action": "create",
-    "title": "index.md 404s",
-    "body": "The link to auth.md is broken.",
-    "labels": ["docs", "bug"]
-  },
-  {
-    "action": "create",
-    "title": "notes.txt has stale paths",
-    "body": "Paths still point at the old repo."
-  },
-  {
-    "action": "update",
-    "number": 2,
-    "state": "closed"
-  },
-  {
-    "action": "delete",
-    "number": 99
-  },
-  {
-    "action": "delete",
-    "number": 1
-  }
-]
+Your script must do all of the following:
+
+1. Take the issue's title as a required positional argument, and accept two optional flags: one that sets the repository, defaulting to your own `JoshGo6/ThrowAway`, and one that sets the output file, defaulting to `issue-log.md`. Running it with `--help` must explain all three.
+2. Read the token from the environment and stop with a message naming the variable before sending any request, when the variable is unset or empty.
+3. Make every request carry the token and pin the API version.
+4. Make four calls in this order: create the issue, add a body to it, read it back, and close it with a reason. Stop as soon as a call answers outside the `2xx` range, and log that call's status code together with GitHub's own `message` field at `ERROR`.
+5. Write a Markdown table to the output file, with one row for every call that was made, giving the method, the path the request went to, the status code, and the issue's state after that call. Write the table even on the runs that stop early.
+6. Print the issue's number and its browser URL as the last line.
+
+Everything you need from the earlier lessons is in the reference set, which is faster to search than the lesson files. The `Lookup` section of [[Command-line Arguments]] has the `argparse` patterns, [[Environment Variables]] has the token reading, [[Logging]] has the configuration calls, and [[Reading and Writing Files]] has the write. [[Making HTTP Requests]] covers the calls from this lesson and Lesson 37. [[Syntax Index]] maps a call to the page that owns it when you know the name but not where it lives.
+
+### Expected output
+
+Both blocks below came from a real run of my own solution on my own machine, so they show what a correct script produces rather than what one ought to.
+
+The following two lines are what the script prints, and your issue number will differ because GitHub assigns the next one in the repository:
+
+```output
+INFO wrote issue-log.md with 4 rows
+issue 4: https://github.com/JoshGo6/ThrowAway/issues/4
 ```
 
-Requirements:
+The following is the file the script wrote, where the fourth row is the only one whose state has changed and the first row's path has no issue number in it because the number didn't exist yet:
 
-1. Take the plan file's path as a positional argument, and support a `--dry-run` flag.
-2. Read the token from `DOCS_API_TOKEN`. If it is unset or empty, print `DOCS_API_TOKEN is not set.` and send nothing at all.
-3. Read and parse the plan file.
-4. Send each entry to the API with the method its `action` calls for, authenticated on every request. A `create` entry has no `number`, and the server assigns one. An `update` entry names the issue and carries the fields to change — treat every key other than `action` and `number` as a field to send, so the script keeps working when the plan changes a different field. Not every `create` entry carries every field.
-5. Print one line per entry: the method, the path, the status code, and a detail. For a create, the detail is the new number, the title, and the labels the record ended up with. For an update, the number, title, and state. For a successful delete, the word `deleted`. For anything that came back `400` or higher, the error message the API sent.
-6. A failed entry must not stop the run.
-7. Finish with a count of what was sent and what failed.
-8. `--dry-run` prints the method and path it would use for each entry and sends nothing, then reports how many were planned.
+```markdown
+# Issue run log
 
-Expected output, with no token set:
-
-```
-DOCS_API_TOKEN is not set.
+| Method | Path | Status | State after |
+| --- | --- | --- | --- |
+| `POST` | `/repos/JoshGo6/ThrowAway/issues` | 201 | open |
+| `PATCH` | `/repos/JoshGo6/ThrowAway/issues/4` | 200 | open |
+| `GET` | `/repos/JoshGo6/ThrowAway/issues/4` | 200 | open |
+| `PATCH` | `/repos/JoshGo6/ThrowAway/issues/4` | 200 | closed |
 ```
 
-With the token set, `--dry-run`:
-
-```
-DRY RUN POST   /issues
-DRY RUN POST   /issues
-DRY RUN PATCH  /issues/2
-DRY RUN DELETE /issues/99
-DRY RUN DELETE /issues/1
-5 planned, 0 sent
-```
-
-And the real run, against a freshly restarted server:
-
-```
-POST   /issues     201  #3 index.md 404s [docs, bug]
-POST   /issues     201  #4 notes.txt has stale paths []
-PATCH  /issues/2   200  #2 rate-limit.md missing example (closed)
-DELETE /issues/99  404  no issue 99
-DELETE /issues/1   204  deleted
-4 sent, 1 failed
-```
-
-The field content must match; the column widths are yours to choose. Confirm the result with `curl -s http://127.0.0.1:8077/issues` — issue 1 should be gone, issue 2 closed, and issues 3 and 4 created.
-
-## Exercise 2 — Sync a customer plan against the Zenmeter API
-
-Lesson 38's `sync_issues.py` sent `POST`, `PUT`, `PATCH`, and `DELETE` at a stand-in API on your own machine. This exercise sends three of those four at a real one: your Zenmeter tenant. There's no local server to start — `BASE` points straight at Zenmeter, and every write actually happens.
-
-Two things are different from the lesson's local API, and both come straight from the [Zenmeter Management API reference](https://api.nalpeiron.io/docs/zenmeter.html):
-
-- Every request needs **two** credentials in `headers`, not one: your access token as a Bearer `Authorization` header, and your tenant ID as an `N-TenantId` header. Both are required on every call, not just the writes.
-- Zenmeter has no `DELETE` operations at all. Removal is modeled as a lifecycle change — a customer is _disabled_, not deleted — so this exercise doesn't need `requests.delete()`. Worth remembering for when you go on to document this API: "delete" isn't a verb it uses.
-
-## Setup — pointing the script at your tenant
-
-Set `BASE` at the top of your script to your tenant's actual API host. The docs page lives at `api.nalpeiron.io/docs/`, but a docs site and the host that actually answers API calls aren't always the same machine — confirm the real one in the NGP administration site before assuming it matches the docs URL.
-
-Export your credentials rather than writing them into the script:
+The following command produced both blocks:
 
 ```bash
-export ZENMETER_ACCESS_TOKEN=<your access token>
-export ZENMETER_TENANT_ID=<your tenant id>
+python3 issue_run.py "Exercise run: document the rate limit"
 ```
-
-> [!warning] This exercise writes to your real tenant There's no fixture to reset between runs. Point every entry in the plan file at test customers you're comfortable creating, updating, and disabling, and re-check IDs before you re-run — running the same `create` entry twice makes two customers, not one.
-
-## The plan file
-
-Save this as `customer-plan.json`. It has one entry of each kind this exercise covers:
-
-```json
-[
-  {
-    "action": "create",
-    "name": "Fenwick Robotics",
-    "type": "prospect",
-    "accountRefId": "fenwick-2026",
-    "subscriptionSku": "REPLACE-WITH-YOUR-SKU"
-  },
-  {
-    "action": "create",
-    "name": "Corvid Labs",
-    "type": "customer",
-    "accountRefId": "corvid-2019"
-  },
-  {
-    "action": "update_contract",
-    "customerId": "cust_REPLACE_WITH_A_REAL_TEST_CUSTOMER_ID",
-    "contractValue": 250000,
-    "contractRenewalDate": "2027-03-01T00:00:00Z"
-  },
-  {
-    "action": "disable",
-    "customerId": "cust_REPLACE_WITH_ANOTHER_REAL_TEST_CUSTOMER_ID"
-  }
-]
-```
-
-Before a real (non-dry-run) attempt, replace the placeholder strings: `GET /api/v1/customers` on your tenant will give you real customer IDs to update or disable, and the product catalog endpoints (`GET /api/v1/zenmeter/products` and the business-model endpoints under it) will give you a real SKU to subscribe the new customer to. Dry runs don't need any of that — the placeholders above are fine as they are.
-
-## Requirements
-
-Write `zenmeter_sync.py`.
-
-1. Take the plan file's path as a positional argument, and support a `--dry-run` flag.
-2. Read `ZENMETER_ACCESS_TOKEN` and `ZENMETER_TENANT_ID` from the environment. Check the token first. If it is unset or empty, print `ZENMETER_ACCESS_TOKEN is not set.` and send nothing at all. If the token is present but the tenant ID is unset or empty, print `ZENMETER_TENANT_ID is not set.` and likewise send nothing.
-3. Send both credentials on every request: the token as a Bearer `Authorization` header, the tenant ID as an `N-TenantId` header.
-4. Read and parse the plan file.
-5. A `create` entry has a `name` and, optionally, `type`, `accountRefId`, and `subscriptionSku`. Create the customer first. Only if that succeeds, and only if the entry carries a `subscriptionSku`, create a subscription for the new customer using it. If the customer create fails, don't attempt the subscription create.
-6. An `update_contract` entry names a `customerId` and carries the fields to change — treat every key other than `action` and `customerId` as a field to update. Zenmeter's customer-update endpoint replaces the whole record, so any field you don't explicitly carry forward must still hold whatever it held before the update. Check the OAD for what the customer record returns on a read versus what it accepts on a write — they're not the same shape.
-7. A `disable` entry names a `customerId` and disables that customer.
-8. Print one line per API request actually made — not one per plan entry; a `create` entry with a `subscriptionSku` makes two. Each line needs the method, the path, the status code, and a detail:
-    - Customer create: the new customer's id and name.
-    - Subscription create: the new subscription's id and the SKU you requested.
-    - Update: the field or fields you changed, and the values you sent.
-    - Disable: the word `disabled`.
-    - Anything that comes back `400` or higher: the error message the API sent.
-9. A failed request must not stop the run or prevent later entries from being attempted.
-10. An entry counts as sent only if every request it made succeeded. If any request within an entry fails, the whole entry counts as failed.
-11. Finish with a count of entries sent and entries failed.
-12. `--dry-run` prints the method and path of every request the plan _would_ make, sends none of them, and finishes with a count of requests planned.
-
-## Expected output
-
-Two pieces below are real, captured output — I ran a solution locally against the plan file above. Neither needs your tenant: the missing-credential checks exit before any request goes out, and `--dry-run` never sends one.
-
-With no token set:
-
-```
-ZENMETER_ACCESS_TOKEN is not set.
-```
-
-With `--dry-run`, using the plan file exactly as shown above:
-
-```
-DRY RUN POST   /api/v1/customers
-DRY RUN POST   /api/v1/zenmeter/subscriptions
-DRY RUN POST   /api/v1/customers
-DRY RUN GET    /api/v1/customers/cust_REPLACE_WITH_A_REAL_TEST_CUSTOMER_ID
-DRY RUN PUT    /api/v1/customers/cust_REPLACE_WITH_A_REAL_TEST_CUSTOMER_ID
-DRY RUN PATCH  /api/v1/customers/cust_REPLACE_WITH_ANOTHER_REAL_TEST_CUSTOMER_ID/disable
-6 planned, 0 sent
-```
-
-> [!note] The live run isn't verified I have no network access from this environment and no credentials to your tenant, so I can't run this exercise's actual writes the way the lesson's exercises are normally run and captured. Everything past this point is the _shape_ your output will have, with placeholders standing in for real values — not literal text to diff against, since your customer IDs, subscription IDs, and statuses will be whatever your tenant actually returns:
-> 
-> ```
-> POST   /api/v1/customers                  201  <new customer id>  Fenwick Robotics
-> POST   /api/v1/zenmeter/subscriptions     201  <new subscription id>  <sku>
-> POST   /api/v1/customers                  201  <new customer id>  Corvid Labs
-> PUT    /api/v1/customers/<id>              204  contractValue=250000, contractRenewalDate=2027-03-01T00:00:00Z
-> PATCH  /api/v1/customers/<id>/disable      204  disabled
-> 4 sent, 0 failed
-> ```
-> 
-> If you'd like a second set of eyes once you've run it against your tenant, paste back what you got and I'll sanity-check it against the requirements above.
