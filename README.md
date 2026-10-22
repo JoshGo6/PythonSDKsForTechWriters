@@ -1,4 +1,4 @@
-# Python SDK Learning Path for Tech. Writers
+# Python SDK Learning Path for Technical Writers
 
 This repo contains a technical writer-oriented Python course that I've developed over the course of many hours (and continue to periodically refine)—first with GPT, and then with Claude. There are many Python courses available, but their scopes vary widely. Some courses are small, and some are geared to making the student a full-blown Python developer. I wanted a course specific to the needs of a senior tech. writer.
 
