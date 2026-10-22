@@ -51,10 +51,8 @@ Once the skills are installed, open Claude Code and give it a prompt such as thi
 Generate lesson 12
 ```
 
-The skills write each lesson in Obsidian-flavored Markdown, for reading in [Obsidian](https://obsidian.md). A lesson uses callouts with titles, collapsible callouts, and links in Obsidian's `[[#Heading]]` form, and GitHub shows the markup of each of those as literal text, so open your lessons in Obsidian.
-
-> [!caution]
-> LLMs, like humans, are fallible. It's quite common to find errors in LLM output, and errors have shown up in generated lessons, including in the exercises. If you clone this repo, it is on you to verify that the material produced is accurate.
+> [!important]
+> The skills write each lesson in Obsidian-flavored Markdown, for reading in [Obsidian](https://obsidian.md). A lesson uses callouts with titles, collapsible callouts, and links in Obsidian's `[[#Heading]]` form, and GitHub shows the markup of each of those as literal text, so open your lessons in Obsidian or modify the skills to generate the lessons in another flavor of Markdown, such as GitHub Flavored Markdown (GFM).
 
 ## The sample lesson
 
