@@ -60,7 +60,7 @@ Generate lesson 12
 
 ## Personal progress
 
-As of October 22, 2026, I'm up to Lesson 41, [List Comprehensions](./sample/41st%20Lesson%20%E2%80%94%20List%20Comprehensions.md).
+As of October 30, 2026, I'm up to Lesson 43, [Classes and Instances](./sample/43rd%20Lesson%20%E2%80%94%20Classes%20and%20Instances%20%E2%80%94%20Reading%20%60__init__%60%20and%20%60self%60.md).
 
 ## Changelog
 
